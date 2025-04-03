@@ -73,7 +73,7 @@ observeEvent(input$stature_associate_as, {
 
     #data table output
     output$table_as <- DT::renderDataTable({
-        DT::datatable(results_as[[2]], options = list(dom = 't', pageLength = 1, rownames = FALSE))
+        DT::datatable(results_as[[2]], selection = 'none', options = list(dom = 't', pageLength = 1), rownames = FALSE)
     })
 
     #generate table of results for pdf

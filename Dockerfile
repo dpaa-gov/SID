@@ -1,20 +1,24 @@
 # Base R Shiny image
-FROM rocker/shiny
+FROM rocker/shiny:4.4.3
 
-# Make a directory in the container
-RUN mkdir /home/SID
+# Copy shiny-server config file
+COPY shiny-server.conf /etc/shiny-server/shiny-server.conf
+
+# Delete example apps from shiny-server
+RUN rm -rf /srv/shiny-server/*
+
+# Copy the Shiny app code
+COPY SID /srv/shiny-server/SID
 
 # Install R dependencies
 RUN R -e "install.packages(c('dplyr', 'ggplot2', 'shinyalert', 'shinyBS', 'DT', 'gridExtra', 'ggpubr'))"
 
-# Set the working directory
-WORKDIR /home/SID
-
-# Copy the Shiny app code
-COPY . /home/SID
+# Change ownership of app directory and home directory recursively
+RUN chown -R shiny /srv/shiny-server/SID &&\
+    chown -R shiny /home/shiny
 
 # Expose the application port
-EXPOSE 8180
+EXPOSE 3838
 
-# Run the R Shiny app
-CMD Rscript /home/SID/SID.r
+# Start shiny-server
+CMD shiny-server
