@@ -61,7 +61,25 @@ stature_estimation_ui <- tabPanel("Stature Estimation",icon = icon("ruler-vertic
             plotOutput('ggplot_se'),
             br(),
             DT::dataTableOutput('table_se'),
-            tags$style(HTML('table.dataTable tr.selected td, table.dataTable tr.selected {box-shadow: inset 0 0 0 9999px #126a8f !important;}')),
+            tags$style(HTML('
+                table.dataTable tbody tr.selected td,
+                table.dataTable tbody td.selected {
+                    border-top-color: white !important;
+                    box-shadow: inset 0 0 0 9999px #126a8f !important;
+                }
+
+                table.dataTable tbody tr:active td {
+                    background-color: #126a8f !important;
+                }
+
+                :root {
+                    --dt-row-selected: transparent !important;
+                }
+
+                table.dataTable tbody tr:hover, table.dataTable tbody tr:hover td {
+                    background-color: #126a8f !important;
+                }
+            ')),
             width = 10
         ) #mainPanel
     )#sidebarLayout
