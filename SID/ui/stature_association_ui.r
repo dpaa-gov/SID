@@ -174,8 +174,8 @@ stature_association_ui <- tabPanel("Stature Association",icon = icon("chart-line
         mainPanel(
             plotOutput('ggplot_as'),
             br(),
-            DT::dataTableOutput('table_as')
-            #tags$style(HTML('table.dataTable tr.selected td, table.dataTable tr.selected {box-shadow: inset 0 0 0 9999px #126a8f !important;}'))
+            DT::dataTableOutput('table_as'),
+            width = 10
         ) #mainPanel
     )#sidebarLayout
 )
