@@ -12,14 +12,16 @@ library(shinyBS)
 library(DT)
 library(gridExtra)
 library(ggpubr)
-#library(odbc) for the future database
+library(DBI)
+library(RPostgres)
+library(dotenv)
 
 #load analytical R code
 source("./R/stature_association.r", local=TRUE) 
 source("./R/stature_estimation.r", local=TRUE) 
 
 shinyServer(function(input, output, session){
-    SID_Version <- "0.0.3"
+    SID_Version <- "0.0.4"
     source("./server/reference_s.r", local=TRUE) 
     source("./server/stature_estimation_s.r", local=TRUE) 
     source("./server/stature_association_s.r", local=TRUE) 

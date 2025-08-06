@@ -11,7 +11,7 @@ RUN rm -rf /srv/shiny-server/*
 COPY SID /srv/shiny-server/SID
 
 # Install R dependencies
-RUN R -e "install.packages(c('dplyr', 'ggplot2', 'shinyalert', 'shinyBS', 'DT', 'gridExtra', 'ggpubr'))"
+RUN R -e "install.packages(c('dplyr', 'ggplot2', 'shinyalert', 'shinyBS', 'DT', 'gridExtra', 'ggpubr', 'DBI', 'RPostgres', 'dotenv'))"
 
 # Change ownership of app directory and home directory recursively
 RUN chown -R shiny /srv/shiny-server/SID &&\
