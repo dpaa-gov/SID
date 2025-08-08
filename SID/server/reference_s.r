@@ -1,10 +1,6 @@
 reference_data <- reactiveValues(
-    humerus = data.frame(), 
-    radius = data.frame(), 
-    ulna = data.frame(), 
-    femur = data.frame(), 
-    tibia = data.frame(), 
-    fibula = data.frame()
+    left = data.frame(), 
+    right = data.frame()
 )
 
 observeEvent(TRUE, {
@@ -27,7 +23,7 @@ observeEvent(TRUE, {
         ON f.accession = i.accession
         WHERE i.stature_method = TRUE"
     )
-    reference_data$femur <- dbFetch(res)
+    femur <- dbFetch(res)
 
     res <- dbSendQuery(
     conn = pg_conn,
@@ -37,7 +33,7 @@ observeEvent(TRUE, {
         ON t.accession = i.accession
         WHERE i.stature_method = TRUE"
     )
-    reference_data$tibia <- dbFetch(res)
+    tibia <- dbFetch(res)
 
     res <- dbSendQuery(
     conn = pg_conn,
@@ -47,7 +43,7 @@ observeEvent(TRUE, {
         ON fi.accession = i.accession
         WHERE i.stature_method = TRUE"
     )
-    reference_data$fibula <- dbFetch(res)
+    fibula <- dbFetch(res)
 
     res <- dbSendQuery(
     conn = pg_conn,
@@ -57,7 +53,7 @@ observeEvent(TRUE, {
         ON h.accession = i.accession
         WHERE i.stature_method = TRUE"
     )
-    reference_data$humerus <- dbFetch(res)
+    humerus <- dbFetch(res)
 
     res <- dbSendQuery(
     conn = pg_conn,
@@ -67,7 +63,7 @@ observeEvent(TRUE, {
         ON r.accession = i.accession
         WHERE i.stature_method = TRUE"
     )
-    reference_data$radius <- dbFetch(res)
+    radius <- dbFetch(res)
 
     res <- dbSendQuery(
     conn = pg_conn,
@@ -77,8 +73,48 @@ observeEvent(TRUE, {
         ON u.accession = i.accession
         WHERE i.stature_method = TRUE"
     )
-    reference_data$ulna <- dbFetch(res)
+    ulna <- dbFetch(res)
 
     dbClearResult(res) #clear last results
     dbDisconnect(pg_conn) #disconnect from db
+
+    #vector of bone names
+    bones <- c("humerus", "ulna", "radius", "femur", "tibia", "fibula")
+
+    #columns to drop (from all but the anchor bone)
+    cols_to_remove <- c("collection", "ancestry", "sex", "stature", "bone", "side")
+
+    #initialize empty lists to hold filtered data
+    left_bones <- list()
+    right_bones <- list()
+
+    #filter and clean all bones
+    for (bone in bones) {
+        #filter to left and right
+        bone_data <- get(bone)
+        left  <- bone_data[bone_data$side == "left", ]
+        right <- bone_data[bone_data$side == "right", ]
+
+        #drop extra columns if not the anchor bone (e.g., humerus)
+        if (bone != "humerus") {
+            left  <- subset(left,  select = -c(collection, ancestry, sex, stature, bone, side))
+            right <- subset(right, select = -c(collection, ancestry, sex, stature, bone, side))
+        }
+
+        #store in the lists
+        left_bones[[bone]]  <- left
+        right_bones[[bone]] <- right
+    }
+
+    #merge bones by "accession"
+    left_reference  <- Reduce(function(x, y) merge(x, y, by = "accession"), left_bones)
+    right_reference <- Reduce(function(x, y) merge(x, y, by = "accession"), right_bones)
+
+    #add DB column (based on anchor bone's info: collection, ancestry, sex)
+    left_reference$DB  <- tolower(paste(left_reference$collection, left_reference$ancestry, left_reference$sex))
+    right_reference$DB <- tolower(paste(right_reference$collection, right_reference$ancestry, right_reference$sex))
+
+    #move into reactiveValues
+    reference_data$left <- left_reference
+    reference_data$right <- right_reference
 })

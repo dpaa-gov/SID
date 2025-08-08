@@ -1,6 +1,6 @@
 stature_associate <- function(reference_used, side, bone, known_stature, reference, case, prediction_interval) {
-    df1 <- reference[c("Stature", colnames(case))] #filter by column names
-    df1 <- na.omit(data.frame(Measurements = rowSums(df1[, -1, drop=FALSE]), Stature = df1$Stature)) #rowsums the measurements used and preserves dataframe structure
+    df1 <- reference[c("stature", colnames(case))] #filter by column names
+    df1 <- na.omit(data.frame(Measurements = rowSums(df1[, -1, drop=FALSE]), Stature = df1$stature)) #rowsums the measurements used and preserves dataframe structure
     nref <- nrow(df1) #sample size
     lm1 <- lm(Measurements ~ Stature, data = df1) #calculate model
     pi1 <- predict(lm1, interval = "prediction", level = prediction_interval) #save predicted intervals from reference

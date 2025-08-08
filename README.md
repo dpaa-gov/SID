@@ -23,7 +23,7 @@ docker run --restart=on-failure:10 -d -p 4002:3838 statureid
 * dotenv
 
 ## Citation
-Lynch, J.J. 2025 SID. Stature Identification. Version 0.0.3. Defense POW/MIA Accounting Agency, Offutt AFB, NE.
+Lynch, J.J. 2025 SID. Stature Identification. Version 0.0.4. Defense POW/MIA Accounting Agency, Offutt AFB, NE.
 
 ## TODO
 1. Verify how to sum the measurements for association. is it log sum?
@@ -31,4 +31,6 @@ Lynch, J.J. 2025 SID. Stature Identification. Version 0.0.3. Defense POW/MIA Acc
 3. Should stature estimation allow selection of side? We likely don't have enough data yet.
 4. Do we need batch processing?
 5. Bootstrapping option for smaller samples.
-6. Update for the collection names inh ARDS
+
+## ISSUES
+1. Docker build is currently failing due to network restrictions

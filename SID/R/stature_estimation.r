@@ -7,8 +7,8 @@ stature_estimate <- function(reference, case, prediction_interval) {
     for (i in 1:length(m_names)) { #for every measurement used
         c_i <- combn(m_names,i) #calculate combination of measurements at i index
         for (j in 1:ncol(c_i)) { #for every combination at i index
-            df1 <- reference[c("Stature", c_i[,j])] #filter by column names
-            df1 <- na.omit(data.frame(Measurements = rowSums(df1[, -1, drop=FALSE]), Stature = df1$Stature)) #rowsums the measurements used and preserves dataframe structure
+            df1 <- reference[c("stature", c_i[,j])] #filter by column names
+            df1 <- na.omit(data.frame(Measurements = rowSums(df1[, -1, drop=FALSE]), Stature = df1$stature)) #rowsums the measurements used and preserves dataframe structure
             ref_list[[l]] <- df1
             lm1 <- lm(Stature ~ Measurements,data = df1) #calculate model
             pi_list[[l]] <- predict(lm1, interval = "prediction", level = prediction_interval) #save predicted intervals from reference

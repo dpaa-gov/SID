@@ -39,15 +39,15 @@ observeEvent(input$stature_associate_as, {
         case_data_as <- data.frame(Fib_01 = input$Fib_01_as, Fib_02 = input$Fib_02_as, Fib_03 = input$Fib_03_as, Fib_04 = input$Fib_04_as, Fib_05 = input$Fib_05_as)
     }
     case_data_as <- case_data_as[, colSums(is.na(case_data_as)) == 0, drop=FALSE] #drop empty measurements
+    colnames(case_data_as) <- tolower(colnames(case_data_as))
 
-    #prepares reference data
     if(input$bone_side_as == "right") {
-        reference_data_as <- reference_data$df1[c("DB", "Stature", paste(colnames(case_data_as), "R", sep=""))] #filter by column names
-        colnames(reference_data_as) <- c("DB","Stature",paste(colnames(case_data_as), "R", sep="")) #Removes R from column names
+        reference_data_as <- reference_data$right[c("DB", "stature", colnames(case_data_as))]
     } else {
-        reference_data_as <- reference_data$df1[c("DB", "Stature", colnames(case_data_as))] #filter by column names
+        reference_data_as <- reference_data$left[c("DB", "stature", colnames(case_data_as))]
     }
-    reference_data_as <- filter(reference_data_as, DB %in% input$reference_select_as) #filter by selected demographics
+
+    reference_data_as <- filter(reference_data_as, DB %in% tolower(input$reference_select_as)) #filter by selected demographics
     reference_data_as <- na.omit(reference_data_as) #omit rows with NA
 
     if(nrow(reference_data_as) == 0 || is.na(input$known_stature_as)){
@@ -57,7 +57,7 @@ observeEvent(input$stature_associate_as, {
 
     #convert reference stature to inches. Note: this requires all reference data to be stores as CM, which is standard for most datasets
     if(input$metric_as == "Inches"){
-        reference_data_as[,2] <- reference_data_as[,2] / 2.54
+        reference_data_as$stature <- reference_data_as$stature / 2.54
     }
 
     #prepares parameters

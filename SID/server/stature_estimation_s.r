@@ -10,10 +10,13 @@ observeEvent(input$stature_estimate_se, {
     #prepares case data
     case_data_se <- data.frame(Hum_01 = input$Hum_01_se, Uln_01 = input$Uln_01_se, Rad_01 = input$Rad_01_se, Fem_01 = input$Fem_01_se, Fem_02 = input$Fem_02_se, Tib_01 = input$Tib_01_se, Fib_01 = input$Fib_01_se)
     case_data_se <- case_data_se[, colSums(is.na(case_data_se)) == 0, drop=FALSE]
+    colnames(case_data_se) <- tolower(colnames(case_data_se))
 
-    #prepares reference data
-    reference_data_se <- reference_data$df1[c("DB", "Stature", colnames(case_data_se))] #filter by column names
-    reference_data_se <- filter(reference_data_se, DB %in% input$reference_select_se) #filter by selected demographics
+    #filter by measurements
+    reference_data_se <- reference_data$left[c("DB", "stature", colnames(case_data_se))]
+
+    #filter by demographics DB
+    reference_data_se <- filter(reference_data_se, DB %in% tolower(input$reference_select_se)) 
 
     #prepares parameters
     if(input$prediction_interval_se == "90%") {
@@ -26,7 +29,7 @@ observeEvent(input$stature_estimate_se, {
 
     #convert reference stature to inches. Note: this requires all reference data to be stores as CM, which is standard for most datasets
     if(input$metric_se == "Inches"){
-        reference_data_se[,2] <- reference_data_se[,2] / 2.54
+        reference_data_se$stature <- reference_data_se$stature / 2.54
     }
 
     #stature estimation
