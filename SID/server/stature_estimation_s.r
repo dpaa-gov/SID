@@ -18,6 +18,9 @@ observeEvent(input$stature_estimate_se, {
     #filter by demographics DB
     reference_data_se <- filter(reference_data_se, DB %in% tolower(input$reference_select_se)) 
 
+    #remove rows with NA values
+    reference_data_se <- na.omit(reference_data_se)
+
     #prepares parameters
     if(input$prediction_interval_se == "90%") {
         prediction_interval_se = 0.9

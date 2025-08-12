@@ -1,6 +1,11 @@
 # Base R Shiny image
 FROM rocker/shiny:4.4.3
 
+# Install libpq for RPostgres
+RUN apt-get update && \
+    apt-get install -y libpq-dev && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copy shiny-server config file
 COPY shiny-server.conf /etc/shiny-server/shiny-server.conf
 
@@ -11,7 +16,7 @@ RUN rm -rf /srv/shiny-server/*
 COPY SID /srv/shiny-server/SID
 
 # Install R dependencies
-RUN R -e "install.packages(c('dplyr', 'ggplot2', 'shinyalert', 'shinyBS', 'DT', 'gridExtra', 'ggpubr', 'DBI', 'RPostgres', 'dotenv'))"
+RUN R -e "install.packages(c('pkgconfig', 'dplyr', 'ggplot2', 'shinyalert', 'shinyBS', 'DT', 'gridExtra', 'ggpubr', 'DBI', 'RPostgres', 'dotenv'))"
 
 # Change ownership of app directory and home directory recursively
 RUN chown -R shiny /srv/shiny-server/SID &&\

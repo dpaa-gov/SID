@@ -47,8 +47,11 @@ observeEvent(input$stature_associate_as, {
         reference_data_as <- reference_data$left[c("DB", "stature", colnames(case_data_as))]
     }
 
-    reference_data_as <- filter(reference_data_as, DB %in% tolower(input$reference_select_as)) #filter by selected demographics
-    reference_data_as <- na.omit(reference_data_as) #omit rows with NA
+    #filter by selected demographics
+    reference_data_as <- filter(reference_data_as, DB %in% tolower(input$reference_select_as)) 
+
+    #omit rows with NA
+    reference_data_as <- na.omit(reference_data_as)
 
     if(nrow(reference_data_as) == 0 || is.na(input$known_stature_as)){
         shinyalert(title = "ERROR!", text="There was an input error",type = "error", closeOnClickOutside = TRUE, showConfirmButton = TRUE, confirmButtonText="Dismiss")

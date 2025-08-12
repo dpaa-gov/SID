@@ -4,7 +4,7 @@ stature_estimation_ui <- tabPanel("Stature Estimation",icon = icon("ruler-vertic
             fluidRow(
                 column(12,
                     shinyBS::bsTooltip("reference_select_se", "Defaults to left measurements", trigger = "hover", placement = "top"),
-                    selectizeInput(inputId = "reference_select_se", label = "Reference", choices = c("DPAA Black Males", "DPAA White Males", "Trotter Black Males", "Trotter White Males", "CMNH White Males", "CMNH Black Males", "SI-Terry White Males", "SI-Terry Black Males", "UT White Males", "UT Black Males"), multiple = TRUE, selected = "Trotter White Males"),
+                    selectizeInput(inputId = "reference_select_se", label = "Reference", choices = c("DPAA Black Male", "DPAA White Male", "Trotter Black Male", "Trotter White Male", "CMNH White Male", "CMNH Black Male", "SI-Terry White Male", "SI-Terry Black Male", "UT White Male", "UT Black Male"), multiple = TRUE, selected = "Trotter White Male"),
                 ),
                 column(12,
                     radioButtons(inputId = "prediction_interval_se", label = "Prediction Interval", inline=TRUE, choices = c("90%", "95%", "99%"), selected = "95%")

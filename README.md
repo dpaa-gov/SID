@@ -6,7 +6,8 @@
 ```sh
 git clone https://github.com/jjlynch2/SID
 docker build -t statureid .
-docker run --restart=on-failure:10 -d -p 4002:3838 statureid
+docker run --restart=on-failure:10 --name=statureid -d -p 4002:3838 statureid
+docker network connect app_bridge statureid # add to custom bridge to enable host name resolves between containers; see docker network create my_bridge --driver bridge
 ```
 
 ## R Dependencies
@@ -21,6 +22,7 @@ docker run --restart=on-failure:10 -d -p 4002:3838 statureid
 * DBI
 * RPostgres
 * dotenv
+* pkgconfig (This was previously not needed, but now ggplot2 is having a dep error)
 
 ## Citation
 Lynch, J.J. 2025 SID. Stature Identification. Version 0.0.4. Defense POW/MIA Accounting Agency, Offutt AFB, NE.
@@ -31,6 +33,3 @@ Lynch, J.J. 2025 SID. Stature Identification. Version 0.0.4. Defense POW/MIA Acc
 3. Should stature estimation allow selection of side? We likely don't have enough data yet.
 4. Do we need batch processing?
 5. Bootstrapping option for smaller samples.
-
-## ISSUES
-1. Docker build is currently failing due to network restrictions

@@ -3,7 +3,7 @@ stature_association_ui <- tabPanel("Stature Association",icon = icon("chart-line
         sidebarPanel(
             fluidRow(
                 column(12,
-                    selectizeInput(inputId = "reference_select_as", label = "Reference", choices = c("DPAA Black Males", "DPAA White Males", "Trotter Black Males", "Trotter White Males", "CMNH White Males", "CMNH Black Males", "SI-Terry White Males", "SI-Terry Black Males", "UT White Males", "UT Black Males"), multiple = TRUE, selected = "DPAA White Males"),
+                    selectizeInput(inputId = "reference_select_as", label = "Reference", choices = c("DPAA Black Male", "DPAA White Male", "Trotter Black Male", "Trotter White Male", "CMNH White Male", "CMNH Black Male", "SI-Terry White Male", "SI-Terry Black Male", "UT White Male", "UT Black Male"), multiple = TRUE, selected = "DPAA White Male"),
                 ),
                 column(12,
                     radioButtons(inputId = "prediction_interval_as", label = "Prediction Interval", inline=TRUE, choices = c("90%", "95%", "99%"), selected = "95%")
