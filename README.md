@@ -4,7 +4,6 @@
 
 ## Installation
 ```sh
-git clone https://github.com/jjlynch2/SID
 docker build -t statureid .
 docker run --restart=on-failure:10 --name=statureid -d -p 4002:3838 statureid
 docker network connect app_bridge statureid # add to custom bridge to enable host name resolves between containers; see docker network create my_bridge --driver bridge
@@ -22,7 +21,8 @@ docker network connect app_bridge statureid # add to custom bridge to enable hos
 * DBI
 * RPostgres
 * dotenv
-* pkgconfig (This was previously not needed, but now ggplot2 is having a dep error)
+* pkgconfig (required for ggplot2)
+* Formula (required for ggpubr)
 
 ## Citation
 Lynch, J.J. 2025 SID. Stature Identification. Version 0.0.4. Defense POW/MIA Accounting Agency, Offutt AFB, NE.
