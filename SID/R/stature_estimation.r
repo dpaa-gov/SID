@@ -36,9 +36,8 @@ stature_estimate <- function(reference, case, prediction_interval, bootstrap = F
     return(list(pi_list, stats_df[-1, ], ref_list))
 }
 
-# Bootstrap prediction interval for a single specimen value using lm.fit() for speed.
-# Adds residual noise (rnorm draw) to each bootstrap prediction so the interval
-# captures both coefficient uncertainty AND irreducible observation scatter.
+# Bootstrap prediction interval using RESIDUAL RESAMPLING and lm.fit() for speed.
+# Resamples residuals (not cases) to avoid downward-biased σ̂ from duplicate observations.
 # Returns named vector: c(fit, lwr, upr)
 boot_predict <- function(df, specimen_value, level, B = 5000) {
     X_ref <- cbind(1, df$Measurements)
@@ -46,20 +45,25 @@ boot_predict <- function(df, specimen_value, level, B = 5000) {
     n <- nrow(df)
     p <- ncol(X_ref)
     alpha <- 1 - level
-    preds <- numeric(B)
     X_new <- c(1, specimen_value)
+
+    # Fit full model once — get fitted values and residuals
+    full_fit <- lm.fit(X_ref, y_ref)
+    y_hat_full <- X_ref %*% full_fit$coefficients
+    resids <- y_ref - y_hat_full
+    point_est <- sum(X_new * full_fit$coefficients)
+    sigma_full <- sqrt(sum(resids^2) / (n - p))
+
+    preds <- numeric(B)
     for (b in seq_len(B)) {
-        idx <- sample.int(n, replace = TRUE)
-        Xb <- X_ref[idx, , drop = FALSE]
-        yb <- y_ref[idx]
-        fit <- lm.fit(Xb, yb)
-        y_hat <- sum(X_new * fit$coefficients)
-        # Residual SD from this bootstrap sample
-        resid_b <- yb - Xb %*% fit$coefficients
-        sigma_b <- sqrt(sum(resid_b^2) / (n - p))
-        # Add observation noise for a true prediction interval
-        preds[b] <- rnorm(1, mean = y_hat, sd = sigma_b)
+        # Resample residuals, create synthetic response
+        e_star <- resids[sample.int(n, replace = TRUE)]
+        y_star <- y_hat_full + e_star
+        # Refit on synthetic data (same X, shuffled residuals)
+        fit_b <- lm.fit(X_ref, y_star)
+        y_hat_b <- sum(X_new * fit_b$coefficients)
+        # Add observation noise using full-model sigma
+        preds[b] <- rnorm(1, mean = y_hat_b, sd = sigma_full)
     }
-    point_est <- sum(X_new * lm.fit(X_ref, y_ref)$coefficients)
     c(fit = point_est, lwr = quantile(preds, alpha / 2, names = FALSE), upr = quantile(preds, 1 - alpha / 2, names = FALSE))
 }

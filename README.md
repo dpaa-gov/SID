@@ -97,13 +97,14 @@ When enabled, bootstrap prediction intervals replace the standard normal-theory 
 
 **Algorithm** (per combination where n < 100):
 1. **Point estimate** from OLS on the full (non-resampled) reference data — not the bootstrap mean, so the estimate is identical whether bootstrap is on or off and avoids contamination from the `rnorm` noise draws
-2. For each of 5,000 bootstrap iterations:
-   - Resample reference data with replacement
-   - Refit regression using `lm.fit()` (no formula overhead)
+2. Fit full model once to obtain fitted values (ŷᵢ) and residuals (eᵢ = yᵢ − ŷᵢ)
+3. For each of 5,000 bootstrap iterations:
+   - Resample **residuals** with replacement (not cases — avoids σ̂ bias from duplicate observations)
+   - Create synthetic response: y*ᵢ = ŷᵢ + e*ᵢ
+   - Refit regression on (X, y*) using `lm.fit()` (no formula overhead)
    - Predict at the specimen value
-   - Compute residual standard deviation from the bootstrap sample
-   - Draw from `N(ŷ, σ_b)` to incorporate observation scatter
-3. Derive prediction interval bounds from the percentile method on the 5,000 draws
+   - Draw from `N(ŷ, σ)` using the full-model residual SD to incorporate observation scatter
+4. Derive prediction interval bounds from the percentile method on the 5,000 draws
 
 The residual noise draw in step 2 is what distinguishes a **prediction interval** from a confidence interval for the mean — it captures both coefficient uncertainty and the irreducible scatter of individual observations around the regression line.
 
