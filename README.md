@@ -115,6 +115,10 @@ The residual noise draw in step 2 is what distinguishes a **prediction interval*
 
 Lynch, J.J. 2026 SID. Stature Identification. Version 0.1.0. Defense POW/MIA Accounting Agency, Offutt AFB, NE.
 
+## TODO
+
+1. Fix data table selected row color
+
 ## License
 
 GNU General Public License v2.0 — see [LICENSE](LICENSE) for details.
