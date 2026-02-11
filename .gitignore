@@ -1,2 +1,5 @@
 # Agent workspace
 .agent/
+
+# Environment variables (DB credentials)
+.env
