@@ -1,120 +1,92 @@
-reference_data <- reactiveValues(
-    left = data.frame(), 
-    right = data.frame()
-)
-
-observeEvent(TRUE, {
-    dotenv::load_dot_env() #load database information
-    pg_conn <- dbConnect( #connect to database
+# Connect to ARDS PostgreSQL and load reference metadata
+dotenv::load_dot_env()
+pg_conn <- tryCatch(
+    dbConnect(
         RPostgres::Postgres(),
-        dbname = Sys.getenv("DB_NAME"),
         host = Sys.getenv("DB_HOST"),
-        port = Sys.getenv("DB_PORT"),
+        port = as.integer(Sys.getenv("DB_PORT")),
+        dbname = Sys.getenv("DB_NAME"),
         user = Sys.getenv("DB_USER"),
         password = Sys.getenv("DB_PASS")
-    )
+    ),
+    error = function(e) {
+        stop("Failed to connect to ARDS database: ", e$message)
+    }
+)
 
-    #SQL queries per bone. Note it uses the stature column to pull only individuals identified to be used in stature estimation/association
-    res <- dbSendQuery(
+# Reference groups (collection + ancestry + sex) for stature individuals
+stature_groups <- unique(na.omit(dbGetQuery(
     conn = pg_conn,
-    statement = "SELECT f.*, i.collection, i.ancestry, i.sex, i.stature
-        FROM osteometry.femur f
-        JOIN osteometry.individuals i 
-        ON f.accession = i.accession
-        WHERE i.stature_method = TRUE"
-    )
-    femur <- dbFetch(res)
+    statement = "SELECT DISTINCT collection || ' ' || ancestry || ' ' || sex AS group_label,
+        collection, ancestry, sex
+        FROM osteometry.individuals
+        WHERE stature_method = TRUE
+        ORDER BY collection, ancestry, sex"
+)))
 
-    res <- dbSendQuery(
+# Stature Estimation measurements (stature_method = TRUE on measurements table)
+se_measurements <- dbGetQuery(
     conn = pg_conn,
-    statement = "SELECT t.*, i.collection, i.ancestry, i.sex, i.stature
-        FROM osteometry.tibia t
-        JOIN osteometry.individuals i 
-        ON t.accession = i.accession
-        WHERE i.stature_method = TRUE"
-    )
-    tibia <- dbFetch(res)
+    statement = "SELECT ards, bone, full_name FROM osteometry.measurements
+        WHERE stature_method = TRUE
+        ORDER BY bone, ards"
+)
+se_bones <- unique(se_measurements$bone)
 
-    res <- dbSendQuery(
+# Stature Association measurements (ALL measurements — no stature_method filter on measurements)
+as_measurements <- dbGetQuery(
     conn = pg_conn,
-    statement = "SELECT fi.*, i.collection, i.ancestry, i.sex, i.stature
-        FROM osteometry.fibula fi
-        JOIN osteometry.individuals i 
-        ON fi.accession = i.accession
-        WHERE i.stature_method = TRUE"
-    )
-    fibula <- dbFetch(res)
+    statement = "SELECT ards, bone, full_name FROM osteometry.measurements
+        ORDER BY bone, ards"
+)
+as_bones <- unique(as_measurements$bone)
 
-    res <- dbSendQuery(
-    conn = pg_conn,
-    statement = "SELECT h.*, i.collection, i.ancestry, i.sex, i.stature
-        FROM osteometry.humerus h
-        JOIN osteometry.individuals i 
-        ON h.accession = i.accession
-        WHERE i.stature_method = TRUE"
-    )
-    humerus <- dbFetch(res)
+# Tooltip lookup: ards code -> full_name (lowercase keys for matching)
+measurement_tooltips <- setNames(
+    c(se_measurements$full_name, as_measurements$full_name),
+    tolower(c(se_measurements$ards, as_measurements$ards))
+)
+measurement_tooltips <- measurement_tooltips[!duplicated(names(measurement_tooltips))]
 
-    res <- dbSendQuery(
-    conn = pg_conn,
-    statement = "SELECT r.*, i.collection, i.ancestry, i.sex, i.stature
-        FROM osteometry.radius r
-        JOIN osteometry.individuals i 
-        ON r.accession = i.accession
-        WHERE i.stature_method = TRUE"
-    )
-    radius <- dbFetch(res)
+# Reactive storage for reference data (loaded per group)
+reference_data <- reactiveValues()
 
-    res <- dbSendQuery(
-    conn = pg_conn,
-    statement = "SELECT u.*, i.collection, i.ancestry, i.sex, i.stature
-        FROM osteometry.ulna u
-        JOIN osteometry.individuals i 
-        ON u.accession = i.accession
-        WHERE i.stature_method = TRUE"
-    )
-    ulna <- dbFetch(res)
+# Load reference data for all groups at startup
+for (i in seq_len(nrow(stature_groups))) {
+    group <- stature_groups[i, ]
+    label <- group$group_label
 
-    dbClearResult(res) #clear last results
-    dbDisconnect(pg_conn) #disconnect from db
+    all_bone_data <- data.frame()
+    for (bone in as_bones) {
+        # Get ALL measurement columns for this bone (association needs all)
+        bone_meas <- as_measurements[as_measurements$bone == bone, "ards"]
+        if (length(bone_meas) == 0) next
 
-    #vector of bone names
-    bones <- c("humerus", "ulna", "radius", "femur", "tibia", "fibula")
+        table_name <- paste0("osteometry.", gsub(" ", "_", tolower(bone)))
+        meas_cols <- paste(paste0("b.", bone_meas), collapse = ", ")
 
-    #columns to drop (from all but the anchor bone)
-    cols_to_remove <- c("collection", "ancestry", "sex", "stature", "bone", "side")
+        query <- paste0(
+            "SELECT i.accession, b.side, '", bone, "' AS element, i.stature, ", meas_cols,
+            " FROM ", table_name, " b",
+            " INNER JOIN osteometry.individuals i ON b.accession = i.accession",
+            " WHERE i.stature_method = TRUE",
+            " AND i.collection = $1 AND i.ancestry = $2 AND i.sex = $3"
+        )
 
-    #initialize empty lists to hold filtered data
-    left_bones <- list()
-    right_bones <- list()
-
-    #filter and clean all bones
-    for (bone in bones) {
-        #filter to left and right
-        bone_data <- get(bone)
-        left  <- bone_data[bone_data$side == "left", ]
-        right <- bone_data[bone_data$side == "right", ]
-
-        #drop extra columns if not the anchor bone (e.g., humerus)
-        if (bone != "humerus") {
-            left  <- subset(left,  select = -c(collection, ancestry, sex, stature, bone, side))
-            right <- subset(right, select = -c(collection, ancestry, sex, stature, bone, side))
-        }
-
-        #store in the lists
-        left_bones[[bone]]  <- left
-        right_bones[[bone]] <- right
+        tryCatch(
+            {
+                bone_data <- dbGetQuery(pg_conn, query, params = list(group$collection, group$ancestry, group$sex))
+                if (nrow(bone_data) > 0) {
+                    all_bone_data <- dplyr::bind_rows(all_bone_data, bone_data)
+                }
+            },
+            error = function(e) {
+                message(paste("Warning: Could not load", bone, "for group", label, "-", e$message))
+            }
+        )
     }
 
-    #merge bones by "accession"
-    left_reference  <- Reduce(function(x, y) merge(x, y, by = "accession"), left_bones)
-    right_reference <- Reduce(function(x, y) merge(x, y, by = "accession"), right_bones)
+    reference_data[[label]] <- all_bone_data
+}
 
-    #add DB column (based on anchor bone's info: collection, ancestry, sex)
-    left_reference$DB  <- tolower(paste(left_reference$collection, left_reference$ancestry, left_reference$sex))
-    right_reference$DB <- tolower(paste(right_reference$collection, right_reference$ancestry, right_reference$sex))
-
-    #move into reactiveValues
-    reference_data$left <- left_reference
-    reference_data$right <- right_reference
-})
+dbDisconnect(pg_conn)
