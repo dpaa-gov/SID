@@ -8,6 +8,7 @@ Stature estimation and association application built with R/Shiny. SID uses regr
 
 **Key Features:**
 - **Stature Estimation** — predict living stature from skeletal measurements using OLS regression
+- **Bootstrap Prediction Intervals** — optional bootstrap resampling (5000 iterations) for small reference samples (n < 100), applied per-combination with results flagged in the output table
 - **Stature Association** — evaluate whether a known stature is consistent with skeletal measurements
 - Interactive Plotly visualizations with prediction intervals
 - PostgreSQL-backed reference populations (ARDS)
@@ -89,6 +90,22 @@ SID/
 | DBI | Database interface |
 | RPostgres | PostgreSQL driver |
 | dotenv | Environment variable loading |
+
+## Bootstrap Methodology
+
+When enabled, bootstrap prediction intervals replace the standard normal-theory intervals from `predict(lm, interval="prediction")` for reference samples with **n < 100**. This is applied **per-combination** — within a single estimation run, large-sample combinations use OLS while small-sample combinations use bootstrap. The results table `method` column flags which approach was used.
+
+**Algorithm** (per combination where n < 100):
+1. **Point estimate** from OLS on the full (non-resampled) reference data — not the bootstrap mean, so the estimate is identical whether bootstrap is on or off and avoids contamination from the `rnorm` noise draws
+2. For each of 5,000 bootstrap iterations:
+   - Resample reference data with replacement
+   - Refit regression using `lm.fit()` (no formula overhead)
+   - Predict at the specimen value
+   - Compute residual standard deviation from the bootstrap sample
+   - Draw from `N(ŷ, σ_b)` to incorporate observation scatter
+3. Derive prediction interval bounds from the percentile method on the 5,000 draws
+
+The residual noise draw in step 2 is what distinguishes a **prediction interval** from a confidence interval for the mean — it captures both coefficient uncertainty and the irreducible scatter of individual observations around the regression line.
 
 ## Acknowledgments
 

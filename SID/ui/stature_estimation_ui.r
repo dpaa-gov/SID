@@ -28,6 +28,10 @@ stature_estimation_ui <- tabPanel("Stature Estimation",
                 column(
                     12,
                     radioButtons(inputId = "metric_se", label = "Stature Metric", inline = TRUE, choices = c("Inches", "Centimeters"), selected = "Inches")
+                ),
+                column(
+                    12,
+                    checkboxInput(inputId = "bootstrap_se", label = "Bootstrap (n < 100)", value = FALSE)
                 )
             ),
             tags$div(class = "sidebar-section-label", "MEASUREMENTS"),

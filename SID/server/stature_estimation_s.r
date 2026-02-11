@@ -112,7 +112,7 @@ observeEvent(input$stature_estimate_se, {
     )
 
     # Run stature estimation and store in reactiveVal
-    results_se(stature_estimate(reference = reference_data_se, case = case_data_se, prediction_interval = prediction_interval_se))
+    results_se(stature_estimate(reference = reference_data_se, case = case_data_se, prediction_interval = prediction_interval_se, bootstrap = input$bootstrap_se))
     results_visible_se(TRUE)
 
     # Data table output
