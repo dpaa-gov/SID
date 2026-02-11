@@ -33,15 +33,14 @@ se_measurements <- dbGetQuery(
 )
 se_bones <- unique(se_measurements$bone)
 
-# Stature Association measurements — filtered by config file
-as_config <- read.csv(file = "./extdata/config/association_config", header = TRUE, sep = ",")
-as_valid_bones <- as_config$Bone
+# Stature Association measurements — bones derived from stature_method flag
+# Uses se_bones (stature_method = TRUE) for the bone list, but loads ALL measurements for those bones
 as_measurements <- dbGetQuery(
     conn = pg_conn,
     statement = "SELECT ards, bone, full_name FROM osteometry.measurements
         ORDER BY bone, ards"
 )
-as_measurements <- as_measurements[as_measurements$bone %in% as_valid_bones, ]
+as_measurements <- as_measurements[as_measurements$bone %in% se_bones, ]
 as_bones <- unique(as_measurements$bone)
 
 # Tooltip lookup: ards code -> full_name (lowercase keys for matching)
