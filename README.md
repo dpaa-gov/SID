@@ -37,7 +37,7 @@ Stature estimation and association application built with R/Shiny. SID uses regr
 ## Installation
 
 ```sh
-git clone https://github.com/jjlynch2/SID
+git clone https://github.com/dpaa-gov/SID
 cd SID
 docker build -t statureid .
 docker run --restart=on-failure:10 --name=statureid -d -p 4002:3838 statureid
