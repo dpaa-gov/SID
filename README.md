@@ -13,6 +13,7 @@ Stature estimation and association application built with R/Shiny. SID uses regr
 - Interactive Plotly visualizations with prediction intervals
 - PostgreSQL-backed reference populations (ARDS)
 
+![SID Screenshot](screenshot.png)
 ## Architecture
 
 | Layer | Technology |

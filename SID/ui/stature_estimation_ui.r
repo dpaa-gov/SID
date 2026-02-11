@@ -62,7 +62,26 @@ stature_estimation_ui <- tabPanel("Stature Estimation",
                 tags$div(
                     style = "border: 1px solid #ccc; padding: 15px; border-radius: 4px;",
                     tags$div(class = "main-section-label", "Results"),
-                    DT::dataTableOutput("table_se")
+                    DT::dataTableOutput("table_se"),
+                    tags$style(HTML("
+                        table.dataTable tbody tr.selected td,
+                        table.dataTable tbody td.selected {
+                            border-top-color: white !important;
+                            box-shadow: inset 0 0 0 9999px #d4a843 !important;
+                        }
+
+                        table.dataTable tbody tr:active td {
+                            background-color: #d4a843 !important;
+                        }
+
+                        :root {
+                            --dt-row-selected: transparent !important;
+                        }
+
+                        table.dataTable tbody tr:hover, table.dataTable tbody tr:hover td {
+                            background-color: rgba(212, 168, 67, 0.3) !important;
+                        }
+                    "))
                 )
             ),
             width = 10
