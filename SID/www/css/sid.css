@@ -274,13 +274,13 @@ html {
 /* ===== Body / Main Content ===== */
 
 body {
-    background-color: #ecf0f1 !important;
+    background-color: #ffffff !important;
 }
 
 .main-panel,
 .tab-content,
 .col-sm-9 {
-    background-color: #ecf0f1 !important;
+    background-color: #ffffff !important;
 }
 
 /* ===== Results Panel — bordered container ===== */
