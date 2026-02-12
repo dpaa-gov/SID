@@ -48,7 +48,7 @@ stature_estimation_ui <- tabPanel("Stature Estimation",
                     actionButton("stature_estimate_se", "Estimate", icon = icon("gears"))
                 )
             ),
-            width = 2
+            width = 3
         ),
         mainPanel(
             conditionalPanel(
@@ -84,7 +84,7 @@ stature_estimation_ui <- tabPanel("Stature Estimation",
                     "))
                 )
             ),
-            width = 10
+            width = 9
         )
     )
 )

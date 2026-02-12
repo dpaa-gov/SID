@@ -54,7 +54,7 @@ stature_association_ui <- tabPanel("Stature Association",
                     actionButton("stature_associate_as", "Associate", icon = icon("gears"))
                 )
             ),
-            width = 2
+            width = 3
         ),
         mainPanel(
             conditionalPanel(
@@ -71,7 +71,7 @@ stature_association_ui <- tabPanel("Stature Association",
                     tableOutput("table_as")
                 )
             ),
-            width = 10
+            width = 9
         )
     )
 )

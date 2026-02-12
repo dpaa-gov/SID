@@ -1,6 +1,52 @@
 /* ===== SID Dark Sidebar Theme ===== */
 /* Mirrors OsteoSort styling for consistency across apps */
 
+/* ===== Inter Font (offline) ===== */
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 400;
+    src: url(../fonts/Inter-Regular.woff2) format('woff2');
+}
+
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 500;
+    src: url(../fonts/Inter-Medium.woff2) format('woff2');
+}
+
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 600;
+    src: url(../fonts/Inter-SemiBold.woff2) format('woff2');
+}
+
+/* Apply Inter globally */
+body,
+html {
+    font-family: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif !important;
+}
+
+/* Navbar logo */
+.navbar-logo {
+    height: 40px;
+    width: auto;
+    vertical-align: middle;
+}
+
+/* Version badge — right side of navbar */
+.version-badge {
+    float: right;
+    color: #d4a843 !important;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    padding: 12px 15px;
+    line-height: 20px;
+}
+
 /* Dark sidebar background */
 .well {
     background-color: #1e2a3a !important;
@@ -197,6 +243,19 @@
 .navbar-default {
     background-color: #15202d !important;
     border-bottom: 2px solid #d4a843 !important;
+    min-height: 44px !important;
+}
+
+.navbar-default .navbar-brand,
+.navbar-default .navbar-header .navbar-brand {
+    padding: 2px 15px !important;
+    height: 44px !important;
+    line-height: 40px;
+}
+
+.navbar-default .navbar-nav>li>a {
+    padding-top: 12px !important;
+    padding-bottom: 12px !important;
 }
 
 /* Nav tab hover/active — gold text */
@@ -235,6 +294,12 @@ body {
     margin-bottom: 12px;
     padding-bottom: 6px;
     border-bottom: 2px solid #d4a843;
+}
+
+/* Bordered plot/results containers — white background */
+.main-section-label+div,
+div:has(> .main-section-label) {
+    background-color: #ffffff !important;
 }
 
 /* ===== DataTables ===== */
