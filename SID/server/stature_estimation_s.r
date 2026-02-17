@@ -91,9 +91,8 @@ observeEvent(input$stature_estimate_se, {
     ref_cols <- c("stature", colnames(case_data_se))
     ref_cols <- ref_cols[ref_cols %in% colnames(ref_wide)]
     reference_data_se <- as.data.frame(ref_wide[ref_cols])
-    reference_data_se <- na.omit(reference_data_se)
 
-    if (nrow(reference_data_se) == 0) {
+    if (sum(!is.na(reference_data_se$stature)) == 0) {
         show_error("No reference data available for this selection")
         return(NULL)
     }
