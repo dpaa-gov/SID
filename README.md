@@ -120,6 +120,7 @@ Lynch, J.J. 2026 SID. Stature Identification. Version 0.1.0. Defense POW/MIA Acc
 ## TODO
 
 1. Fix data table selected row color
+2. Replace `.env` file with injected environment variables
 
 ## License
 
