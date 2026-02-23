@@ -134,6 +134,7 @@ observeEvent(input$stature_estimate_se, {
     names(group_agg) <- input$reference_select_se
 
     # Per-model reference groups: just check columns on pre-aggregated data (fast)
+    # Only include models that pass the n >= 10 threshold (matching stature_estimate)
     per_model_groups <- list()
     m_names <- colnames(case_data_se)
     model_idx <- 1
@@ -142,6 +143,9 @@ observeEvent(input$stature_estimate_se, {
         for (j in seq_len(ncol(c_i))) {
             meas_combo <- c_i[, j]
             check_cols <- c("stature", meas_combo)
+            # Skip if combined reference has < 10 complete cases (same as stature_estimate)
+            combo_cols_avail <- check_cols[check_cols %in% colnames(reference_data_se)]
+            if (length(combo_cols_avail) < length(check_cols) || nrow(na.omit(reference_data_se[combo_cols_avail])) < 10) next
             groups_for_model <- Filter(function(g) {
                 gd_agg <- group_agg[[g]]
                 if (is.null(gd_agg)) {
@@ -176,12 +180,27 @@ observeEvent(input$stature_estimate_se, {
         0.95
     )
 
+    # Show processing modal
+    showModal(modalDialog(
+        tags$div(
+            style = "text-align: center; padding: 20px;",
+            tags$p(style = "font-size: 16px;", "Processing estimation models..."),
+            tags$p(style = "color: #888;", "This may take a moment with bootstrap enabled")
+        ),
+        footer = NULL, easyClose = FALSE
+    ))
+
     # Run stature estimation and store in reactiveVal
     results_se(stature_estimate(reference = reference_data_se, case = case_data_se, prediction_interval = prediction_interval_se, bootstrap = input$bootstrap_se))
+
+    # Dismiss modal
+    removeModal()
 
     # Check if any models survived the minimum sample size requirement
     if (nrow(results_se()[[2]]) == 0) {
         show_error("Insufficient reference data: all models require at least 10 individuals")
+        results_se(NULL)
+        groups_per_model_se(list())
         results_visible_se(FALSE)
         return(NULL)
     }
@@ -202,7 +221,7 @@ observeEvent(input$stature_estimate_se, {
 output$groups_used_se <- renderText({
     grps_list <- groups_per_model_se()
     sel <- input$table_se_rows_selected
-    if (length(grps_list) == 0 || is.null(sel)) {
+    if (length(grps_list) == 0 || is.null(sel) || sel > length(grps_list)) {
         return("")
     }
     grps <- grps_list[[sel]]
@@ -216,7 +235,7 @@ output$groups_used_se <- renderText({
 observeEvent(input$table_se_rows_selected, {
     req(results_se())
     sel <- input$table_se_rows_selected
-    if (!is.numeric(sel)) {
+    if (!is.numeric(sel) || sel > length(results_se()[[3]])) {
         return()
     }
 
