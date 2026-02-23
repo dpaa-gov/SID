@@ -12,14 +12,18 @@ stature_association_ui <- tabPanel("Stature Association",
             tags$div(class = "sidebar-section-label", "ELEMENT"),
             fluidRow(
                 column(
-                    6,
-                    h5("Bone", class = "side-label"),
+                    12,
                     selectInput(inputId = "bone_as", label = NULL, choices = NULL)
-                ),
+                )
+            ),
+            tags$div(class = "sidebar-section-label", "SIDE"),
+            fluidRow(
                 column(
-                    6,
-                    h5("Side", class = "side-label"),
-                    selectInput(inputId = "side_as", label = NULL, choices = NULL)
+                    12,
+                    radioButtons(
+                        inputId = "side_as", label = NULL, inline = TRUE,
+                        choices = c("\u2190 left" = "left", "right \u2192" = "right"), selected = "left"
+                    )
                 )
             ),
             tags$div(class = "sidebar-section-label", "SETTINGS"),
@@ -59,6 +63,10 @@ stature_association_ui <- tabPanel("Stature Association",
         mainPanel(
             conditionalPanel(
                 condition = "output.show_results_as",
+                tags$div(
+                    style = "margin-bottom: 10px; font-style: italic; color: #888;",
+                    textOutput("groups_used_as")
+                ),
                 tags$div(
                     style = "border: 1px solid #ccc; padding: 15px; border-radius: 4px;",
                     tags$div(class = "main-section-label", "Plot"),

@@ -54,6 +54,10 @@ stature_estimation_ui <- tabPanel("Stature Estimation",
             conditionalPanel(
                 condition = "output.show_results_se",
                 tags$div(
+                    style = "margin-bottom: 10px; font-style: italic; color: #888;",
+                    textOutput("groups_used_se")
+                ),
+                tags$div(
                     style = "border: 1px solid #ccc; padding: 15px; border-radius: 4px;",
                     tags$div(class = "main-section-label", "Plot"),
                     plotly::plotlyOutput("plotly_se")

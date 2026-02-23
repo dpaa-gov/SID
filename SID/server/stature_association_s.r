@@ -32,25 +32,26 @@ observeEvent(input$reference_select_as,
     ignoreNULL = FALSE
 )
 
-# Cascade: bone selection -> available sides + render measurement inputs
-# (Merged from two separate observeEvent blocks to guarantee ordering)
-observeEvent(input$bone_as, {
+# Cascade: bone or reference selection -> render measurement inputs (side is static)
+observeEvent(list(input$bone_as, input$reference_select_as), {
     if (is.null(input$bone_as) || input$bone_as == "") {
         return()
     }
 
-    # Update available sides
+    # Filter to measurements that have data in the reference for this bone
     combined <- do.call(dplyr::bind_rows, lapply(input$reference_select_as, function(g) reference_data[[g]]))
     bone_data <- combined[combined$element == input$bone_as, ]
-    available_sides <- unique(na.omit(bone_data$side))
-    updateSelectInput(session, "side_as", choices = available_sides)
-
-    # Render measurement inputs for this bone
     bone_meas <- as_measurements[as_measurements$bone == input$bone_as, ]
 
+    # Only show measurements that have at least one non-NA value in the reference data
+    available_meas <- bone_meas[sapply(bone_meas$ards, function(code) {
+        col <- tolower(code)
+        col %in% colnames(bone_data) && any(!is.na(bone_data[[col]]))
+    }), ]
+
     output$measurements_as <- renderUI({
-        inputs <- lapply(seq_len(nrow(bone_meas)), function(i) {
-            code <- bone_meas$ards[i]
+        inputs <- lapply(seq_len(nrow(available_meas)), function(i) {
+            code <- available_meas$ards[i]
             input_id <- paste0(code, "_as")
             tooltip <- measurement_tooltips[[tolower(code)]]
             if (is.null(tooltip)) tooltip <- code
@@ -109,8 +110,24 @@ observeEvent(input$stature_associate_as, {
     reference_data_as <- ref_filtered[ref_cols]
     reference_data_as <- na.omit(reference_data_as)
 
+    # Track which groups actually contributed rows after full filtering
+    groups_used_as_list <- Filter(function(g) {
+        gd <- reference_data[[g]]
+        gd_filtered <- gd[gd$element == input$bone_as & gd$side == input$side_as, ]
+        if (nrow(gd_filtered) == 0) {
+            return(FALSE)
+        }
+        gd_cols <- ref_cols[ref_cols %in% colnames(gd_filtered)]
+        nrow(na.omit(gd_filtered[gd_cols])) > 0
+    }, input$reference_select_as)
+
     if (nrow(reference_data_as) == 0) {
         show_error("No reference data available for this selection")
+        return(NULL)
+    }
+
+    if (nrow(reference_data_as) < 10) {
+        show_error("Insufficient reference data: at least 10 individuals required")
         return(NULL)
     }
 
@@ -127,16 +144,17 @@ observeEvent(input$stature_associate_as, {
         0.95
     )
 
-    # Build reference group string
-    ref_used <- paste(input$reference_select_as, collapse = ", ")
-
     # Run stature association
     results_as <- stature_associate(
-        reference_used = ref_used, side = input$side_as, bone = input$bone_as,
         known_stature = input$known_stature_as, reference = reference_data_as,
         case = case_data_as, prediction_interval = prediction_interval_as
     )
     results_visible_as(TRUE)
+
+    # Display which reference groups contributed data
+    output$groups_used_as <- renderText({
+        paste("Reference groups used:", paste(groups_used_as_list, collapse = ", "))
+    })
 
     # Table output
     output$table_as <- renderTable(

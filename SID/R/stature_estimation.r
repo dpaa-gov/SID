@@ -9,6 +9,7 @@ stature_estimate <- function(reference, case, prediction_interval, bootstrap = F
         for (j in seq_len(ncol(c_i))) { # for every combination at i index
             df1 <- reference[c("stature", c_i[, j])] # filter by column names
             df1 <- na.omit(data.frame(Measurements = rowSums(df1[, -1, drop = FALSE]), Stature = df1$stature)) # rowsums the measurements used and preserves dataframe structure
+            if (nrow(df1) < 10) next # minimum sample size requirement
             ref_list[[l]] <- df1
             lm1 <- lm(Stature ~ Measurements, data = df1) # calculate model
             pi_list[[l]] <- predict(lm1, interval = "prediction", level = prediction_interval) # save predicted intervals from reference
