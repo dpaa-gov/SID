@@ -1,13 +1,33 @@
 # Connect to ARDS PostgreSQL and load reference metadata
-dotenv::load_dot_env()
+
+if (file.exists(".env")) {
+    dotenv::load_dot_env(".env")
+} else {
+    message("No .env file found; using system environment variables.")
+}
+
+db_host <- Sys.getenv("DB_HOST", unset = "host.docker.internal")
+db_port <- Sys.getenv("DB_PORT", unset = "5432")
+db_name <- Sys.getenv("DB_NAME", unset = "")
+db_user <- Sys.getenv("DB_USER", unset = "")
+db_pass <- Sys.getenv("DB_PASS", unset = "")
+
+if (db_port == "" || is.na(suppressWarnings(as.integer(db_port)))) {
+    db_port <- "5432"
+}
+
+if (db_name == "" || db_user == "" || db_pass == "") {
+    stop("Missing required database environment variables: DB_NAME, DB_USER, and/or DB_PASS")
+}
+
 pg_conn <- tryCatch(
     dbConnect(
         RPostgres::Postgres(),
-        host = Sys.getenv("DB_HOST"),
-        port = as.integer(Sys.getenv("DB_PORT")),
-        dbname = Sys.getenv("DB_NAME"),
-        user = Sys.getenv("DB_USER"),
-        password = Sys.getenv("DB_PASS")
+        host = db_host,
+        port = as.integer(db_port),
+        dbname = db_name,
+        user = db_user,
+        password = db_pass
     ),
     error = function(e) {
         stop("Failed to connect to ARDS database: ", e$message)
@@ -17,11 +37,13 @@ pg_conn <- tryCatch(
 # Reference groups (collection + ancestry + sex) for stature individuals
 stature_groups <- unique(na.omit(dbGetQuery(
     conn = pg_conn,
-    statement = "SELECT DISTINCT collection || ' ' || ancestry || ' ' || sex AS group_label,
-        collection, ancestry, sex
-        FROM osteometry.individuals
-        WHERE stature_method = TRUE
-        ORDER BY collection, ancestry, sex"
+    statement = "SELECT DISTINCT i.collection || ' ' || i.ancestry || ' ' || i.sex AS group_label,
+        i.collection, i.ancestry, i.sex
+        FROM osteometry.individuals i
+        INNER JOIN osteometry.collections c ON i.collection = c.collection
+        WHERE c.stature_method = TRUE
+        AND i.stature_method = TRUE
+        ORDER BY i.collection, i.ancestry, i.sex"
 )))
 
 # Stature Estimation measurements (stature_method = TRUE on measurements table)
