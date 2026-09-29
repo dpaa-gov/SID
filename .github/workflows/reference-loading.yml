@@ -1,0 +1,18 @@
+name: Reference loading checks
+on:
+  push:
+    paths: ['SID/R/reference_data.r', 'SID/server/reference_s.r', 'SID/server.r', 'tests/reference_loading.R', '.github/workflows/reference-loading.yml']
+  pull_request:
+    paths: ['SID/R/reference_data.r', 'SID/server/reference_s.r', 'SID/server.r', 'tests/reference_loading.R', '.github/workflows/reference-loading.yml']
+permissions:
+  contents: read
+jobs:
+  references:
+    runs-on: ubuntu-latest
+    container: rocker/r-ver:4.4.3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install test dependencies
+        run: Rscript -e 'install.packages(c("DBI", "dplyr"), repos="https://cloud.r-project.org")'
+      - name: Check batched reference loading
+        run: Rscript tests/reference_loading.R

@@ -11,7 +11,8 @@ library(DBI)
 library(RPostgres)
 library(dotenv)
 
-# load analytical R code
+# load reference retrieval and analytical R code
+source("./R/reference_data.r", local = TRUE)
 source("./R/stature_association.r", local = TRUE)
 source("./R/stature_estimation.r", local = TRUE)
 
