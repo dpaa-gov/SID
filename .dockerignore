@@ -1,0 +1,13 @@
+# Only what the two builds need is sent to Docker; everything else stays out.
+#   build/Dockerfile  compiles SIDJ and server
+#   Dockerfile        copies server/config, web and VERSION, and, for a local
+#                     build, a bundle from dist/
+*
+!SIDJ
+!server
+!web
+!VERSION
+!dist/*.tar.gz
+SIDJ/test
+server/test
+**/.DS_Store

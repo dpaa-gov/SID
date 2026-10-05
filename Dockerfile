@@ -1,29 +1,35 @@
-# Base R Shiny image
-FROM rocker/shiny:4.4.3
+# syntax=docker/dockerfile:1
+# What Atlas builds. Nothing is compiled here: the Julia side comes from the
+# release named below, so that release must already have its asset attached.
 
-# Install libpq for RPostgres
-RUN apt-get update && \
-    apt-get install -y libpq-dev && \
-    rm -rf /var/lib/apt/lists/*
+FROM debian:bookworm-slim AS bundle
 
-# Copy shiny-server config file
-COPY shiny-server.conf /etc/shiny-server/shiny-server.conf
+# Bump with each release
+ARG SID_VERSION=v1.0.0-alpha.1
+# Or a local path, to try a bundle built on this machine
+ARG BUNDLE=https://github.com/dpaa-gov/SID/releases/download/${SID_VERSION}/sid-linux-x86_64.tar.gz
 
-# Delete example apps from shiny-server
-RUN rm -rf /srv/shiny-server/*
+# A URL arrives as the archive; a local archive arrives already unpacked
+ADD ${BUNDLE} /tmp/bundle/
+RUN mkdir -p /opt && \
+    if [ -d /tmp/bundle/sid ]; then mv /tmp/bundle/sid /opt/sid; \
+    else tar -xzf /tmp/bundle/*.tar.gz -C /opt; fi
 
-# Copy the Shiny app code
-COPY SID /srv/shiny-server/SID
+FROM debian:bookworm-slim
 
-# Install R dependencies
-RUN R -e "install.packages(c('dplyr', 'shinyalert', 'DT', 'plotly', 'DBI', 'RPostgres', 'dotenv'))"
+RUN useradd --uid 10001 --create-home sid
+COPY --from=bundle /opt/sid /opt/sid
 
-# Change ownership of app directory and home directory recursively
-RUN chown -R shiny /srv/shiny-server/SID &&\
-    chown -R shiny /home/shiny
+# Read at run time, at the paths the program was compiled with
+WORKDIR /app
+COPY server/config /app/server/config
+COPY web /app/web
+COPY VERSION /app/VERSION
 
-# Expose the application port
+# Two worker threads for analyses, one interactive thread for requests
+ENV JULIA_NUM_THREADS=2,1 \
+    PORT=3838
+
+USER sid
 EXPOSE 3838
-
-# Start shiny-server
-CMD shiny-server
+CMD ["/opt/sid/bin/sid"]

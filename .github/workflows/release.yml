@@ -1,0 +1,69 @@
+name: Release
+
+# Publishing a GitHub Release (e.g. v2.0.0) compiles the Julia side of
+# SID once and attaches it to that release. The Dockerfile downloads the
+# asset, so Atlas never compiles Julia.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check versions match this release
+        run: |
+          expected="ARG SID_VERSION=${GITHUB_REF_NAME}"
+          if ! grep -qx "$expected" Dockerfile; then
+            echo "::error::Dockerfile must contain '$expected' before releasing"
+            exit 1
+          fi
+          expected="${GITHUB_REF_NAME#v}"
+          if [[ "$(head -n 1 VERSION | tr -d '[:space:]')" != "$expected" ]]; then
+            echo "::error::VERSION must be '$expected' before releasing"
+            exit 1
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Compile
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: build/Dockerfile
+          platforms: linux/amd64
+          outputs: type=local,dest=dist
+
+      - name: Package
+        run: |
+          tar -czf dist/sid-linux-x86_64.tar.gz -C dist sid
+          (cd dist && sha256sum sid-linux-x86_64.tar.gz > sid-linux-x86_64.tar.gz.sha256)
+
+      - name: Smoke test the image Atlas will build
+        run: |
+          docker build --build-arg BUNDLE=dist/sid-linux-x86_64.tar.gz -t sid:release .
+          docker run -d --name sid -p 3838:3838 -e DB_NAME=none -e DB_USER=none -e DB_PASS=none sid:release
+          for i in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:3838/healthz && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3838/healthz
+          curl -fsS http://127.0.0.1:3838/ | grep -q "<title>SID</title>"
+          docker logs sid
+
+      - name: Attach to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$GITHUB_REF_NAME" \
+            dist/sid-linux-x86_64.tar.gz \
+            dist/sid-linux-x86_64.tar.gz.sha256 \
+            --clobber

@@ -1,0 +1,910 @@
+/* ===== SID: dark sidebar theme on Bootstrap 5 (Flatly), OsteoSort's =====
+   The navy and greys are the Atlas platform's (its midnight shell and its
+   blue-grey scale); the gold accent is OsteoSort's and SID's. */
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  src: url(../fonts/Inter-Regular.woff2) format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  src: url(../fonts/Inter-Medium.woff2) format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  src: url(../fonts/Inter-SemiBold.woff2) format('woff2');
+}
+
+:root {
+  --os-gold: #d4a843;
+  --os-gold-tint: rgba(212, 168, 67, 0.15);
+  --os-navy: #0c2030;
+  --os-navy-dark: #081726;
+  --os-field: #192e3f;
+  --os-text: #dae6ec;
+  --os-muted: #778f9e;
+  --os-line: rgba(255, 255, 255, 0.08);
+  /* the sidebar's rhythm: every control is one height, and controls stacked
+     in a section are one gap apart */
+  --os-control: 38px;
+  --os-gap: 8px;
+  --bs-body-font-family: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --bs-body-font-size: 15px;
+  --bs-body-bg: #f4f8fa;
+  --bs-body-color: #2a4051;
+}
+
+body {
+  font-family: var(--bs-body-font-family);
+  font-size: var(--bs-body-font-size);
+  background-color: var(--bs-body-bg);
+}
+
+.app-main {
+  padding: 20px 15px;
+}
+
+/* The sidebar keeps one width on desktop screens; the results take the rest.
+   On narrow screens the two stack. */
+@media (min-width: 992px) {
+  .app-layout {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+  }
+
+  .app-sidebar {
+    flex: 0 0 360px;
+  }
+}
+
+.app-results {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Text selection is off everywhere: dragging across the page highlights
+   nothing. Results are taken out with the Copy and Download buttons. Fields
+   stay selectable so typed values can be edited. */
+body {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Icons: Font Awesome Free 6 solid SVGs, tinted with the text colour.
+   Not named ".icon": Plotly gives its toolbar SVGs that class. */
+.os-icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.125em;
+  background-color: currentColor;
+  -webkit-mask: var(--icon) no-repeat center / contain;
+  mask: var(--icon) no-repeat center / contain;
+}
+
+.icon-ruler { --icon: url(../icons/ruler.svg); }
+.icon-fit { --icon: url(../icons/fit.svg); }
+.icon-play { --icon: url(../icons/play.svg); width: 0.75em; }
+.icon-eraser { --icon: url(../icons/eraser.svg); width: 1.125em; }
+.icon-copy { --icon: url(../icons/copy.svg); }
+
+/* Header: darker than the sidebar, with a gold accent border */
+.app-navbar {
+  background-color: var(--os-navy-dark);
+  border-bottom: 2px solid var(--os-gold);
+  min-height: 44px;
+  padding: 0;
+}
+
+.app-navbar .navbar-brand {
+  padding: 2px 15px 2px 0;
+  margin-right: 30px;
+  line-height: 40px;
+}
+
+.navbar-logo {
+  height: 40px;
+  width: auto;
+  vertical-align: middle;
+}
+
+.app-navbar .nav-link {
+  color: #ffffff;
+  background: none;
+  border: none;
+  padding: 12px 15px !important;
+  line-height: 20px;
+}
+
+.app-navbar .nav-link:hover,
+.app-navbar .nav-link:focus,
+.app-navbar .nav-link.active,
+.app-navbar .nav-link.show {
+  color: var(--os-gold);
+}
+
+.version-badge {
+  color: var(--os-gold);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  padding: 12px 15px;
+  line-height: 20px;
+}
+
+/* Dark sidebar */
+.well {
+  background-color: var(--os-navy);
+  border-radius: 8px;
+  padding: 19px;
+  margin-bottom: 20px;
+  color: var(--os-text);
+}
+
+.well label,
+.well .form-label,
+.well .form-check-label {
+  color: var(--os-text);
+  font-weight: normal;
+}
+
+.well .form-label {
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+
+.sidebar-section-label {
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: var(--os-muted);
+  margin-bottom: 8px;
+  margin-top: 16px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--os-line);
+}
+
+/* Under a heading, the first thing in each column of a row sits one gap
+   below it, as a control straight under a heading does */
+.well .sidebar-section-label + .row .side-label,
+.well .sidebar-section-label + .row .measure-list {
+  margin-top: 0;
+}
+
+.well > .sidebar-section-label:first-child {
+  margin-top: 0;
+}
+
+/* A caption over a column of controls inside a section (Independent, Left):
+   plain small text, so it reads as belonging under the section's heading and
+   not as a second heading */
+.well h5.side-label {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--os-muted);
+  margin-top: var(--os-gap);
+  margin-bottom: 4px;
+}
+
+/* Every control in the sidebar is the same size: dropdowns, tag lists,
+   number fields and the file field share one height, font and padding. */
+.well .form-control,
+.well .ts-wrapper .ts-control {
+  font-size: 15px;
+  line-height: 1.5;
+  min-height: 38px;
+  padding: 6px 8px;
+}
+
+/* The theme reserves room on the right for a dropdown arrow that is not
+   drawn here; give it back so longer names such as "humerus-scapula" fit. */
+.well .ts-wrapper.single .ts-control {
+  padding-right: 8px !important;
+}
+
+.well .ts-wrapper .ts-control {
+  align-items: center;
+}
+
+/* A control placed directly under another, with no label between them */
+.well .stacked {
+  margin-top: var(--os-gap);
+}
+
+/* Dark form controls */
+.well .form-control {
+  background-color: var(--os-field);
+  color: var(--os-text);
+  border: 1px solid var(--os-line);
+  box-shadow: none;
+}
+
+.well .form-control:focus {
+  border-color: var(--os-gold);
+  box-shadow: none;
+}
+
+.well .form-control::placeholder {
+  color: #586f80;
+}
+
+/* Typed measurements: one row each, the code beside its field */
+.well .measure-list {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 8px;
+  align-items: center;
+  margin-top: var(--os-gap);
+}
+
+.well .measure-list label,
+.well .measure-list h5.side-label {
+  margin: 0;
+  white-space: nowrap;
+}
+
+/* A bone with many measurements: beyond about ten rows the fields scroll in
+   place, so the rest of the form and the Analyze button stay where they are.
+   The wheel stays with the list while the pointer is over it. The small inset
+   leaves room for a field's focus ring, which the scrolling edge would cut. */
+.well .measure-scroll {
+  max-height: 440px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #586f80 transparent;
+  margin: var(--os-gap) -3px 0;
+  padding: 3px;
+}
+
+.well .measure-scroll .measure-list {
+  margin-top: 0;
+}
+
+/* In the scrolling fields and in an open list the tooltip is the floating
+   one, placed by script (common.js); the one drawn in place would be cut off */
+.well .measure-scroll [data-tooltip]:hover::after,
+.well .ts-dropdown .option[data-tooltip]:hover::after {
+  content: none;
+}
+
+.floating-tip {
+  position: fixed;
+  z-index: 2000;
+  background-color: #f5e6c0;
+  color: var(--os-navy);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+
+/* Hide number input spinners */
+.well input[type="number"]::-webkit-outer-spin-button,
+.well input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.well input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Tom Select (dropdowns and tag lists) */
+.well .ts-wrapper {
+  margin-bottom: 0;
+}
+
+.well .ts-wrapper .ts-control,
+.well .ts-wrapper.single.input-active .ts-control,
+.well .ts-wrapper.full .ts-control {
+  background-color: var(--os-field) !important;
+  background-image: none !important;
+  color: var(--os-gold);
+  border: 1px solid var(--os-line);
+  box-shadow: none;
+  font-weight: 600;
+}
+
+.well .ts-wrapper.focus .ts-control {
+  border-color: var(--os-gold);
+  box-shadow: none;
+}
+
+.well .ts-wrapper .ts-control > input {
+  color: var(--os-gold);
+}
+
+.well .ts-wrapper .ts-control > input::placeholder {
+  color: #586f80;
+}
+
+/* A dropdown must not change height when it gains or loses focus: the form
+   below would move under the pointer and swallow a click on Process. */
+.well .ts-wrapper.single .ts-control {
+  flex-wrap: nowrap;
+}
+
+.well .ts-wrapper.single .ts-control > .item {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.well .ts-wrapper.single .ts-control > input {
+  min-width: 2px !important;
+}
+
+.well .ts-wrapper.single .ts-control::after {
+  border-color: var(--os-muted) transparent transparent transparent;
+}
+
+.well .ts-wrapper.multi .ts-control > .item {
+  color: var(--os-gold);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  /* tight enough for two codes per row in a half-width column */
+  padding: 1px 3px;
+  margin: 0 2px 3px 0;
+  font-weight: 600;
+}
+
+.well .ts-wrapper.multi .ts-control {
+  padding-left: 7px;
+  padding-right: 5px;
+}
+
+/* The theme gives a tag list's text field a 7rem minimum width, so it wraps
+   onto an empty line of its own whenever the last row of tags is nearly full.
+   Let it share the last row instead. */
+.well .ts-wrapper.multi.has-items .ts-control > input {
+  min-width: 2px !important;
+  margin: 0 !important;
+}
+
+/* A tag's ×: faint until the tag or the × itself is pointed at, so a row of
+   tags stays readable. The theme's divider line and padding are taken off. */
+.well .ts-wrapper.multi .ts-control > .item .remove {
+  border: none;
+  padding: 0 1px 0 3px;
+  margin: 0;
+  color: var(--os-muted);
+  opacity: 0.55;
+  font-weight: normal;
+  text-decoration: none;
+}
+
+.well .ts-wrapper.multi .ts-control > .item:hover .remove {
+  opacity: 1;
+}
+
+.well .ts-wrapper.multi .ts-control > .item .remove:hover {
+  background: none;
+  color: #ffffff;
+}
+
+.well .ts-wrapper.multi .ts-control > .item.active {
+  background-color: var(--os-gold-tint);
+  color: var(--os-gold);
+}
+
+.ts-dropdown {
+  background-color: var(--os-field);
+  color: var(--os-text);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  margin-top: 0;
+}
+
+.ts-dropdown .option,
+.ts-dropdown .no-results {
+  color: var(--os-text);
+  white-space: nowrap;
+}
+
+/* A list may be wider than a half-width dropdown, so long names stay on one line */
+.well .ts-dropdown {
+  width: max-content;
+  min-width: 100%;
+}
+
+.ts-dropdown .option.active,
+.ts-dropdown .option:hover,
+.ts-dropdown .option.selected {
+  background-color: var(--os-gold);
+  color: var(--os-navy);
+}
+
+/* Checkboxes, radios, slider */
+.well .form-check-input {
+  accent-color: var(--os-gold);
+  background-color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.well .form-check-input:checked {
+  background-color: var(--os-gold);
+  border-color: var(--os-gold);
+}
+
+.well .form-check-input:focus {
+  box-shadow: 0 0 0 2px rgba(212, 168, 67, 0.3);
+}
+
+/* The on/off settings are switches: a dark pill with a grey dot when off,
+   gold with a white dot when on. */
+.well .form-switch .form-check-input:not(:checked) {
+  background-color: var(--os-field);
+  border-color: var(--os-muted);
+  --bs-form-switch-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23778f9e'/%3e%3c/svg%3e");
+}
+
+/* the same height as a dropdown or a field, whatever the words in it */
+.segmented .btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--os-control);
+  background-color: var(--os-field);
+  border: 1px solid var(--os-line);
+  color: var(--os-text);
+  font-size: 14px;
+  padding: 0 6px;
+}
+
+.segmented .btn:hover {
+  border-color: var(--os-muted);
+  color: #ffffff;
+}
+
+.segmented .btn-check:checked + .btn {
+  background-color: var(--os-gold);
+  border-color: var(--os-gold);
+  color: var(--os-navy);
+  font-weight: 500;
+}
+
+.segmented .btn-check:disabled + .btn {
+  opacity: 0.4;
+}
+
+.segmented .btn-check:focus-visible + .btn {
+  box-shadow: 0 0 0 2px rgba(212, 168, 67, 0.3);
+}
+
+.well hr {
+  border-color: rgba(255, 255, 255, 0.4);
+  margin: 18px 0;
+}
+
+/* Gold buttons */
+/* The quieter of two buttons: Clear beside Analyze. An outline, so the solid
+   one reads as the thing to press. */
+.btn-outline-gold,
+.btn-outline-gold:focus {
+  background-color: transparent;
+  border: 1px solid var(--os-gold);
+  color: var(--os-gold);
+}
+
+.btn-outline-gold:hover,
+.btn-outline-gold:active {
+  background-color: var(--os-gold-tint) !important;
+  border-color: var(--os-gold) !important;
+  color: var(--os-gold) !important;
+}
+
+.btn-gold,
+.btn-gold:focus {
+  background-color: var(--os-gold);
+  border-color: var(--os-gold);
+  color: var(--os-navy);
+}
+
+.btn-gold:hover,
+.btn-gold:active,
+.btn-gold:disabled {
+  background-color: #c2983a !important;
+  border-color: #c2983a !important;
+  color: var(--os-navy) !important;
+}
+
+/* Measurement code tooltip: light gold on dark */
+.well [data-tooltip] {
+  position: relative;
+  cursor: help;
+}
+
+/* let the tooltip of a measurement tag extend past its tag list */
+.well .ts-wrapper.multi .ts-control {
+  overflow: visible;
+}
+
+/* Dropdowns and tag lists each sit in their own layer, so a tooltip would
+   slide under the control beside or above it. Lift whatever is hovered. */
+.well [data-tooltip]:hover {
+  z-index: 30;
+}
+
+.well .ts-wrapper:hover .ts-control {
+  z-index: 20;
+}
+
+.well [data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  background-color: #f5e6c0;
+  color: var(--os-navy);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  z-index: 1000;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+
+/* Main panel */
+.panel {
+  background-color: #ffffff;
+  border: 1px solid #dae6ec;
+  border-radius: 4px;
+  padding: 15px;
+  margin-bottom: 20px;
+}
+
+.main-section-label {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #2a4051;
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--os-gold);
+}
+
+/* The summary: one tile per headline number */
+.stat-tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.stat-tile {
+  background-color: #f7fafc;
+  border: 1px solid #dae6ec;
+  border-left: 3px solid #becfd9;
+  border-radius: 4px;
+  padding: 10px 14px;
+}
+
+/* four across above the plot, fewer to a row on a narrow screen */
+.stat-tiles.in-a-row {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #2a4051;
+}
+
+.stat-note {
+  font-size: 13px;
+  font-weight: 500;
+  color: #586f80;
+  margin-left: 8px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #586f80;
+  margin-top: 2px;
+}
+
+
+.plot-single {
+  width: 100%;
+  height: 450px;
+}
+
+/* Tables */
+.panel .table {
+  margin-bottom: 0;
+  --bs-table-striped-bg: #f7fafc;
+  --bs-table-hover-bg: var(--os-gold-tint);
+  --bs-table-border-color: #eef4f7;
+}
+
+/* numbers against the right edge of their column, each digit the same width */
+.panel .table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.panel .table th {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.result-table tbody tr:hover > td {
+  background-color: var(--os-gold-tint);
+  box-shadow: none;
+}
+
+.result-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.result-table th.sortable::after {
+  content: "\2195";
+  color: #becfd9;
+  margin-left: 6px;
+  font-weight: 400;
+}
+
+.result-table th.sorted-asc::after { content: "\2191"; color: #2a4051; }
+.result-table th.sorted-desc::after { content: "\2193"; color: #2a4051; }
+
+/* An estimation's models: the chosen one, whose plot is shown, is gold */
+.result-table.selectable tbody tr {
+  cursor: pointer;
+}
+
+.result-table.selectable tbody tr.selected > td,
+.result-table.selectable tbody tr.selected:hover > td {
+  background-color: var(--os-gold);
+  color: var(--os-navy);
+  box-shadow: none;
+}
+
+.table-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 15px 0;
+}
+
+.table-toolbar input:focus {
+  border-color: var(--os-gold);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(212, 168, 67, 0.3);
+}
+
+.table-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.table-paging {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.table-paging .page-size {
+  width: auto;
+}
+
+.table-paging .page-size:focus {
+  border-color: var(--os-gold);
+  box-shadow: 0 0 0 2px rgba(212, 168, 67, 0.3);
+}
+
+.table-footer .pagination {
+  margin: 0;
+  --bs-pagination-color: #2a4051;
+  --bs-pagination-bg: transparent;
+  --bs-pagination-border-color: transparent;
+  --bs-pagination-hover-color: var(--os-navy);
+  --bs-pagination-hover-bg: var(--os-gold);
+  --bs-pagination-hover-border-color: var(--os-gold);
+  --bs-pagination-active-color: var(--os-navy);
+  --bs-pagination-active-bg: var(--os-gold);
+  --bs-pagination-active-border-color: var(--os-gold);
+  --bs-pagination-disabled-bg: transparent;
+  --bs-pagination-disabled-border-color: transparent;
+  --bs-pagination-disabled-color: #778f9e;
+  --bs-pagination-focus-box-shadow: none;
+}
+
+/* The sample size of a result row says, on hover, which reference groups it
+   came from. The tooltip opens to the left, on the row's own line, so the
+   scrolling table area never clips it. */
+.panel td[data-tooltip] {
+  position: relative;
+  cursor: help;
+  text-decoration: underline dotted #becfd9;
+  text-underline-offset: 3px;
+}
+
+.panel td[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: #f5e6c0;
+  color: var(--os-navy);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  z-index: 1000;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+
+/* Dialogs */
+.progress-text {
+  text-align: center;
+  margin: 10px 0 0;
+}
+
+#progress-modal .progress-bar {
+  background-color: var(--os-gold);
+}
+
+.error-dialog .modal-body {
+  text-align: center;
+  padding: 30px;
+}
+
+/* what went wrong, said plainly: a red edge marks it, the words do the rest */
+.error-dialog {
+  border-top: 3px solid #c0392b;
+}
+
+.error-dialog p {
+  font-size: 16px;
+  margin: 4px 0 22px;
+}
+
+/* ===== SID's own ===== */
+
+/* The unit the known stature is typed in: a small in | cm choice joined to
+   the right of its field, the same as the unit in the settings */
+.well .input-group .unit-toggle {
+  flex: 0 0 auto;
+}
+
+.well .input-group .unit-toggle .btn {
+  width: 42px;
+}
+
+.well .input-group > .form-control {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.well .input-group .unit-toggle > .btn:first-of-type {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  margin-left: -1px;
+}
+
+/* A caption at the top of the settings sits one gap under the heading, as a
+   control does */
+.well .settings > h5.side-label:first-child {
+  margin-top: 0;
+}
+
+.well .form-switch.stacked {
+  margin-bottom: 0;
+}
+
+/* A tile whose value is words, such as a model's measurements, in smaller type */
+.stat-value.stat-text {
+  font-size: 18px;
+  line-height: 1.6;
+}
+
+/* A prediction interval is two numbers: its tile widens to keep them on one
+   line, and the others share what is left */
+.stat-tiles.in-a-row {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.stat-tiles.in-a-row .stat-tile {
+  flex: 1 1 180px;
+}
+
+.stat-tiles.in-a-row .stat-value {
+  white-space: nowrap;
+}
+
+/* On a very wide screen the results stop widening, so the plot and table
+   keep their proportions. The sidebar stays at the left edge and the results
+   beside it; what is left over is empty space on the right. */
+.app-results {
+  max-width: 1400px;
+}
+
+/* A plot keeps one shape, 16:9, within a range of heights, rather than
+   stretching into a strip */
+.plot-single {
+  height: auto;
+  aspect-ratio: 16 / 9;
+  min-height: 320px;
+  max-height: 560px;
+}
+
+/* On a wide screen the tiles stand in one column beside the plot, as tall
+   as it is, sharing its height; narrower, they sit in a row above it */
+@media (min-width: 1200px) {
+  .summary-row {
+    display: flex;
+    gap: 16px;
+    align-items: stretch;
+  }
+
+  /* the tiles end level with the plot's x-axis: the space below it, for the
+     axis numbers and title, is the plot's bottom margin (PLOT_MARGIN, common.js) */
+  .summary-row .stat-tiles.in-a-row {
+    flex: 0 0 290px;
+    flex-direction: column;
+    margin-bottom: 0;
+    padding-bottom: 50px;
+  }
+
+  .summary-row .stat-tiles.in-a-row .stat-tile {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .summary-row .plot-single {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+}
+
+/* A plot's hover label (common.js): the floating tooltip's look, with a
+   trace name and two lines of values */
+.plot-tip {
+  position: fixed;
+  z-index: 2000;
+  background-color: #f5e6c0;
+  color: var(--os-navy);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: pre;
+  line-height: 1.5;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}

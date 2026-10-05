@@ -1,5 +1,21 @@
 # Agent workspace
 .agent/
 
-# Environment variables (DB credentials)
+# Editor settings
+.vscode/
+
+# Local database credentials (see README: Local development)
 .env
+
+# The compiled Julia side, built locally by dev/run-image.sh
+dist/
+
+# The R SID's results and the comparison with them (test/parity)
+test/parity/data/
+
+# Browser test screenshots
+test/browser/screens/
+
+# OS
+.DS_Store
+Thumbs.db

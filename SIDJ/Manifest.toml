@@ -1,0 +1,112 @@
+# This file is machine-generated - editing it directly is not advised
+
+julia_version = "1.13.1"
+manifest_format = "2.1"
+project_hash = "0500b2849fcc8a94bf7f84e4aba7df380cda1f3a"
+
+[[deps.Artifacts]]
+uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
+version = "1.11.0"
+
+[[deps.CompilerSupportLibraries_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
+version = "1.5.5+2"
+
+[[deps.Dates]]
+deps = ["Printf"]
+uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
+version = "1.11.0"
+
+[[deps.JLLWrappers]]
+deps = ["Artifacts", "Preferences"]
+git-tree-sha1 = "7204148362dafe5fe6a273f855b8ccbe4df8173e"
+registries = "General"
+uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
+version = "1.8.0"
+
+[[deps.Libdl]]
+uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+version = "1.11.0"
+
+[[deps.LinearAlgebra]]
+deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
+uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+version = "1.13.0"
+
+[[deps.OpenBLAS_jll]]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
+uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
+version = "0.3.30+0"
+
+[[deps.Preferences]]
+deps = ["TOML"]
+git-tree-sha1 = "5005266de4bfe50e53ff44a5cb5c540b6e47a254"
+registries = "General"
+uuid = "21216c6a-2e73-6563-6e65-726566657250"
+version = "1.6.0"
+
+[[deps.Printf]]
+deps = ["Unicode"]
+uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+version = "1.11.0"
+
+[[deps.Random]]
+deps = ["SHA"]
+uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+version = "1.11.0"
+
+[[deps.Rmath]]
+deps = ["Random", "Rmath_jll"]
+git-tree-sha1 = "52b99504e2c174d9a8592a89647f5187063d1eb1"
+registries = "General"
+uuid = "79098fc4-a85e-5d69-aa6a-4863f24498fa"
+version = "0.8.2"
+
+[[deps.Rmath_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "6d40b2fe70437b01397d2a4d5b020008da4e7019"
+registries = "General"
+uuid = "f50d1b31-88e8-58de-be2c-1cc44531875f"
+version = "0.5.2+0"
+
+[[deps.SHA]]
+uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+version = "1.0.0"
+
+[[deps.SIDJ]]
+deps = ["Random", "Rmath", "Statistics"]
+path = "."
+uuid = "5e1edfc5-7e50-4b8f-8b66-ec1035c3c6fc"
+version = "1.0.0"
+
+[[deps.Statistics]]
+deps = ["LinearAlgebra"]
+git-tree-sha1 = "e2b53ce13a53367e96601081e33d34746b571bad"
+registries = "General"
+uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+version = "1.11.5"
+
+    [deps.Statistics.extensions]
+    SparseArraysExt = ["SparseArrays"]
+
+    [deps.Statistics.weakdeps]
+    SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+
+[[deps.TOML]]
+deps = ["Dates"]
+uuid = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
+version = "1.0.3"
+
+[[deps.Unicode]]
+uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
+version = "1.11.0"
+
+[[deps.libblastrampoline_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
+version = "5.15.0+0"
+
+[registries.General]
+url = "https://github.com/JuliaRegistries/General.git"
+uuid = "23338594-aafe-5451-b93e-139f81909106"

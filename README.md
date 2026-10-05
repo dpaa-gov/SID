@@ -1,113 +1,169 @@
-# SID 0.1.0
+# SID
 
-![Build](https://img.shields.io/badge/build-passing-brightgreen)
-![R](https://img.shields.io/badge/R-4.x-blue)
-![Status](https://img.shields.io/badge/status-beta%20testing%20needed-yellow)
+Stature identification. SID estimates living stature from skeletal measurements, and tests whether a known stature is consistent with a skeleton, by regression on reference populations.
 
-Stature estimation and association application built with R/Shiny. SID uses regression-based methods to estimate stature from skeletal measurements and assess stature association strength against reference populations.
+- **Estimation:** stature predicted from the measurements of one side, with a prediction interval. Every combination of the measurements entered is a model; the analyst chooses among them.
+- **Association:** whether a known stature fits the measurements of one bone.
 
-**Key Features:**
-- **Stature Estimation** — predict living stature from skeletal measurements using OLS regression
-- **Bootstrap Prediction Intervals** — optional bootstrap resampling (5000 iterations) for small reference samples (n < 100), applied per-combination with results flagged in the output table
-- **Stature Association** — evaluate whether a known stature is consistent with skeletal measurements
-- Interactive Plotly visualizations with prediction intervals
-- PostgreSQL-backed reference populations (ARDS)
+![SID](screenshot.png)
 
-![SID Screenshot](screenshot.png)
-## Architecture
+## How it is built
 
-| Layer | Technology |
-|-------|------------|
-| Frontend | R/Shiny UI |
-| Backend (statistical) | R |
-| Database | PostgreSQL (ARDS) |
-| Deployment | Docker (rocker/shiny) |
+| Part | What it is | Where |
+|---|---|---|
+| SIDJ | The method: a Julia package with no web or database code | `SIDJ/` |
+| Server | A Julia HTTP server: loads reference data, runs SIDJ, serves the page | `server/` |
+| Page | Static HTML, CSS and JavaScript on Bootstrap 5; no build step | `web/` |
+| Reference data | ARDS, a PostgreSQL database, read-only | external |
 
-## Prerequisites
+The server reads the reference groups from ARDS when the page is opened, so a collection, individual or measurement switched off for stature in ARDS (`stature_method`) disappears from the app on the next page load.
 
-- Docker
-- A running PostgreSQL instance with the ARDS osteometry schema
-- A `.env` file inside `SID/` with database credentials:
-  ```
-  DB_HOST=<host>
-  DB_PORT=<port>
-  DB_USER=<user>
-  DB_PASS=<password>
-  ```
+Bones are listed head to toe, by the number each measurement has in the data collection manual (the `utk2016` column of `osteometry.measurements`), as in OsteoSort.
 
-## Installation
+## Using the app
 
-```sh
-git clone https://github.com/dpaa-gov/SID
-cd SID
-docker build -t statureid .
-docker run --restart=on-failure:10 --name=statureid -d -p 4002:3838 statureid
-docker network connect app_bridge statureid
-```
+1. Choose one or more **reference groups**. Selecting several pools their individuals.
+2. **Estimation:** choose the side and type the measurements. **Association:** choose the element and side, type the known stature and the measurements.
+3. Under **Settings**, choose the prediction interval (90, 95 or 99%) and whether stature is in inches or centimetres. Estimation can also bootstrap its intervals.
+4. Press **Estimate** or **Associate**.
 
-The app will be available at `http://localhost:4002/SID`.
+**The method.** A model sums the measurements it uses. Estimation regresses stature on that sum over the reference individuals who have every one of the measurements, on the chosen side, joining an individual's bones; association regresses the sum of one bone's measurements on stature. Both fit ordinary least squares and give the normal-theory prediction interval. Association's p-value is a two-sided t-test of the specimen's sum against the value predicted at the known stature. A model needs at least 10 reference individuals.
 
-## Local Development (Without Docker)
+**Estimation results.** One row per model, sorted by **PI**, the half-width of the prediction interval (point estimate minus lower bound). The narrowest is chosen to begin with; clicking another row shows its plot and summary. Hovering a row's sample size `n` shows which reference groups it came from. **Copy** puts the chosen model on the clipboard under the column headings, with the reference groups, ready to paste into a spreadsheet or report.
 
-### Requirements
+**Bootstrap.** With **Bootstrap (n < 100)** on, a model fitted to fewer than 100 individuals gets its interval by resampling instead; the **Method** column says which models did. The point estimate stays the least-squares one. For each of 5,000 draws the residuals are resampled with replacement and added to the fitted values, the line is refitted and its prediction at the specimen taken, and noise from the full fit's residual spread is added; the interval is the percentiles of those draws. Resampling residuals rather than individuals keeps the measurements fixed, so every refit is well defined and the spread is not understated by repeated individuals. The draws are random, so the bounds move by about 1% of the interval's width between runs.
 
-- R 4.x with packages listed in [Dependencies](#dependencies)
-- PostgreSQL client library (`libpq-dev` on Debian/Ubuntu)
-- `.env` file in `SID/` with DB credentials (see [Prerequisites](#prerequisites))
+**Units.** Measurements are in millimetres. ARDS holds stature in centimetres; in inches it is divided by 2.54.
 
-### Run
+## Local development
+
+You need Docker, Julia 1.13 and a copy of ARDS.
+
+**1. Start ARDS.** Build and load it as its own README describes, as a container named `ards-db`, then put it on a network the app can share:
 
 ```sh
-Rscript start_dev.R
+docker network create sid-dev
+docker network connect sid-dev ards-db
 ```
 
-The app will open at `http://127.0.0.1:4002`.
-
-## Project Structure
+**2. Give the app its credentials.** Create `.env` in the repository root (it is git-ignored), without quotes around the values:
 
 ```
-SID/
-├── Dockerfile
-├── SID/                   # Shiny application
-│   ├── server.r           # Server entry point
-│   ├── ui.r               # UI entry point
-│   ├── R/                 # Analytical R functions
-│   ├── server/            # Server modules (reference, estimation, association)
-│   ├── ui/                # UI modules
-│   └── www/               # Static assets (CSS, images)
-└── start_dev.R            # Local development launcher
+DB_HOST=ards-db
+DB_PORT=5432
+DB_NAME=ards
+DB_USER=statureid
+DB_PASS=<the statureid user's password>
 ```
 
-## Dependencies
+**3. Run the server.**
 
-### R
-| Package | Purpose |
-|---------|---------|
-| shiny | Web framework |
-| plotly | Interactive plots |
-| DT | Interactive data tables |
-| dplyr | Data manipulation |
-| shinyalert | Alert dialogs |
-| DBI | Database interface |
-| RPostgres | PostgreSQL driver |
-| dotenv | Environment variable loading |
+```sh
+dev/julia.sh -e 'using Pkg; Pkg.instantiate()'                 # first time only
+dev/julia.sh -e 'using SIDServer; SIDServer.main()'            # http://127.0.0.1:3838/
+```
 
-## Bootstrap Methodology
+`dev/julia.sh` runs Julia for the server package with the variables from `.env`. It uses the Julia 1.13 on your machine if there is one (reaching ARDS on `127.0.0.1`), and a Julia container on the `sid-dev` network otherwise. Changes to files in `web/` show on reload; changes to Julia code need a restart.
 
-When enabled, bootstrap prediction intervals replace the standard normal-theory intervals from `predict(lm, interval="prediction")` for reference samples with **n < 100**. This is applied **per-combination** — within a single estimation run, large-sample combinations use OLS while small-sample combinations use bootstrap. The results table `method` column flags which approach was used.
+### Tests
 
-**Algorithm** (per combination where n < 100):
-1. **Point estimate** from OLS on the full (non-resampled) reference data — not the bootstrap mean, so the estimate is identical whether bootstrap is on or off and avoids contamination from the `rnorm` noise draws
-2. Fit full model once to obtain fitted values (ŷᵢ) and residuals (eᵢ = yᵢ − ŷᵢ)
-3. For each of 5,000 bootstrap iterations:
-   - Resample **residuals** with replacement (not cases — avoids σ̂ bias from duplicate observations)
-   - Create synthetic response: y*ᵢ = ŷᵢ + e*ᵢ
-   - Refit regression on (X, y*) using `lm.fit()` (no formula overhead)
-   - Predict at the specimen value
-   - Draw from `N(ŷ, σ)` using the full-model residual SD to incorporate observation scatter
-4. Derive prediction interval bounds from the percentile method on the 5,000 draws
+All tests live in `test/`.
 
-The residual noise draw in step 2 is what distinguishes a **prediction interval** from a confidence interval for the mean — it captures both coefficient uncertainty and the irreducible scatter of individual observations around the regression line.
+| What | Command | Needs |
+|---|---|---|
+| `test/sidj`: the method, on made-up data and against numbers from R | `PROJECT=SIDJ dev/julia.sh -e 'using Pkg; Pkg.test()'` | nothing |
+| `test/server`: the API and its refusals | `dev/julia.sh -e 'using Pkg; Pkg.test()'` | ARDS |
+| `test/parity`: the R/Shiny SID 0.1.0 against this one | see below | ARDS, Docker |
+| `test/browser`: the real page in a headless browser, compared with the API | see below | a running server |
+
+The first two also run on GitHub for every push (`.github/workflows/tests.yml`), where the server's tests skip the parts that need ARDS. Each release additionally builds the image and checks that it starts and serves the page (`.github/workflows/release.yml`).
+
+**Comparison with the R SID.** `test/parity/capture.sh` runs the R SID's own analysis code, taken from its last commit, on a few thousand made-up cases against ARDS in R 4.4.3, and saves what it gives. `compare.jl` sends the same cases through this server and reports every difference:
+
+```sh
+test/parity/capture.sh                  # about 25 minutes, most of it the R bootstrap
+dev/julia.sh test/parity/compare.jl
+```
+
+Against ARDS of October 2026, over 3,161 cases and 38,907 models, every refusal and every number matched, but for one estimate lying exactly on a rounding boundary (166.795, which the two round to 166.79 and 166.80 from the last bit of the arithmetic). Bootstrap bounds can only match within the randomness of the draws: over 4,113 bootstrapped models they differed by a median of 1.0% of the interval width, without bias, as two runs of the R SID differ from each other.
+
+**Browser test.** After changing anything in `web/`, run it against a running server:
+
+```sh
+docker run --rm --network host --user "$(id -u):$(id -g)" -e HOME=/tmp \
+  -v "$PWD:/app:z" -w /app mcr.microsoft.com/playwright/python:v1.49.0-jammy \
+  sh -c "pip install -q playwright==1.49.0 && python test/browser/test_ui.py"
+```
+
+`SIDJ/test/runtests.jl` and `server/test/runtests.jl` are the files Julia's `Pkg.test()` looks for; each only points into `test/`.
+
+### Scripts
+
+| Script | Purpose |
+|---|---|
+| `dev/julia.sh` | Run Julia for the server (or, with `PROJECT=SIDJ`, for SIDJ) with the settings from `.env` |
+| `dev/run-image.sh` | Compile the Julia side, build the image and run it as Atlas does, on http://127.0.0.1:3839/ |
+
+## Configuration
+
+Everything comes from the environment.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `DB_NAME`, `DB_USER`, `DB_PASS` | required | ARDS database and read-only login |
+| `DB_HOST` | `host.docker.internal` | ARDS host |
+| `DB_PORT` | `5432` | ARDS port |
+| `PORT` | `3838` | Port the server listens on |
+| `REFERENCE_MAX_AGE_SECONDS` | `30` | How old the loaded reference data may be before a page load re-reads ARDS |
+
+`server/config/default_references.csv` lists the groups selected when the page opens.
+
+## Deployment
+
+SID is deployed through Atlas, which builds the `Dockerfile` in this repository and runs the image.
+
+| Atlas setting | Value |
+|---|---|
+| Dockerfile path | `Dockerfile` |
+| Container port | `3838` |
+| Launch path | `/` |
+| Health-check path | `/healthz` |
+| ARDS database access | Read-only |
+
+The image compiles nothing. The Julia side is compiled once per release into a standalone program and attached to the GitHub Release; the `Dockerfile` downloads it and adds the page. So a release must have its asset before that tag is deployed.
+
+### Releasing
+
+1. Set the version in `VERSION` (shown in the app header) and `ARG SID_VERSION=vX.Y.Z` in the `Dockerfile`. Update the citation below and in `CITATION`. Commit and push.
+2. Publish a GitHub Release with tag `vX.Y.Z`. For a pre-release, use a tag like `vX.Y.Z-alpha.1` (with `X.Y.Z-alpha.1` in `VERSION`) and tick **Set as a pre-release**.
+3. `.github/workflows/release.yml` checks that `VERSION` and the `Dockerfile` match the tag, compiles the program with `build/Dockerfile`, builds the image from it, checks that it starts, and attaches `sid-linux-x86_64.tar.gz` to the release.
+4. Once the asset is on the release, deploy tag `vX.Y.Z` in Atlas.
+
+If the workflow fails, nothing is attached and a deploy of that tag fails at the download step. Fix the problem and re-run the workflow.
+
+## Repository layout
+
+```
+SIDJ/                 The method (Julia package)
+  src/regression.jl     the fitted line, its prediction interval, the bootstrap
+  src/data.jl           reference groups and the samples drawn from them
+  src/estimate.jl       stature estimation: one model per set of measurements
+  src/associate.jl      stature association
+server/               The HTTP server (Julia package)
+  src/                  reference loading, API
+  config/               default reference groups
+web/                  The page: index.html, css/, js/, vendored libraries
+test/                 All tests
+  sidj/                 the method, on made-up data; no database
+  server/               the API against ARDS
+  parity/               the R SID against this one
+  browser/              the page in a headless browser
+build/Dockerfile      Compiles the Julia side into a standalone program
+Dockerfile            What Atlas builds
+.github/workflows/    tests.yml (every push), release.yml (each release)
+dev/                  Local scripts
+VERSION               The version shown in the app
+```
 
 ## Acknowledgments
 
@@ -115,13 +171,8 @@ The residual noise draw in step 2 is what distinguishes a **prediction interval*
 
 ## Citation
 
-Lynch, J.J. 2026 SID. Stature Identification. Version 0.1.0. Defense POW/MIA Accounting Agency, Offutt AFB, NE.
-
-## TODO
-
-1. Replace `.env` file with injected environment variables
-2. Decide on forcing metric-only (cm) for stature in ARDS, or add a check in SID to verify/convert the unit of stature pulled from ARDS
+Lynch, J.J. 2026 SID. Stature Identification. Version 1.0.0. Defense POW/MIA Accounting Agency, Offutt AFB, NE.
 
 ## License
 
-GNU General Public License v2.0 — see [LICENSE](LICENSE) for details.
+GNU General Public License v2.0

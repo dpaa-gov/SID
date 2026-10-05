@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SID</title>
+    <link rel="stylesheet" href="vendor/bootstrap-flatly.min.css">
+    <link rel="stylesheet" href="vendor/tom-select.bootstrap5.min.css">
+    <link rel="stylesheet" href="css/sid.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand app-navbar">
+        <div class="container-fluid">
+            <span class="navbar-brand"><img src="img/sid.png" class="navbar-logo" alt="SID"></span>
+            <ul class="navbar-nav" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="nav-estimation" data-bs-toggle="tab" data-bs-target="#tab-estimation" type="button" role="tab">
+                        <i class="os-icon icon-ruler"></i> Estimation
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="nav-association" data-bs-toggle="tab" data-bs-target="#tab-association" type="button" role="tab">
+                        <i class="os-icon icon-fit"></i> Association
+                    </button>
+                </li>
+            </ul>
+            <span class="version-badge ms-auto" id="version"></span>
+        </div>
+    </nav>
+
+    <main class="container-fluid app-main">
+        <div class="alert alert-danger" id="load-error" hidden></div>
+        <!-- shown by app.js once the dropdowns are built -->
+        <div class="tab-content" id="app-content" hidden>
+
+            <!-- Estimation -->
+            <div class="tab-pane show active" id="tab-estimation" role="tabpanel">
+                <div class="app-layout">
+                    <div class="app-sidebar">
+                        <form class="well" id="e-form" autocomplete="off">
+                            <div class="sidebar-section-label">Reference</div>
+                            <select id="e-reference" multiple placeholder="Select reference group(s)..."></select>
+                            <div class="sidebar-section-label">Side</div>
+                            <div class="btn-group segmented side-group w-100" role="group" aria-label="Side" id="e-side"><input type="radio" class="btn-check" name="e-side" id="e-side-left" value="left" checked><label class="btn" for="e-side-left">Left</label><input type="radio" class="btn-check" name="e-side" id="e-side-right" value="right"><label class="btn" for="e-side-right">Right</label></div>
+                            <div class="sidebar-section-label">Measurements</div>
+                            <div class="measure-scroll"><div class="measure-list" id="e-values"></div></div>
+
+                            <div class="sidebar-section-label">Settings</div>
+                            <div class="settings" id="e-settings">
+                                <h5 class="side-label">Prediction interval</h5>
+                                <div class="btn-group segmented w-100" role="group" aria-label="Prediction interval">
+                                    <input type="radio" class="btn-check" name="e-interval" id="e-interval-90" value="0.9"><label class="btn" for="e-interval-90">90%</label>
+                                    <input type="radio" class="btn-check" name="e-interval" id="e-interval-95" value="0.95" checked><label class="btn" for="e-interval-95">95%</label>
+                                    <input type="radio" class="btn-check" name="e-interval" id="e-interval-99" value="0.99"><label class="btn" for="e-interval-99">99%</label>
+                                </div>
+                                <h5 class="side-label">Stature</h5>
+                                <div class="btn-group segmented w-100" role="group" aria-label="Stature unit">
+                                    <input type="radio" class="btn-check" name="e-unit" id="e-unit-in" value="Inches" checked><label class="btn" for="e-unit-in">Inches</label>
+                                    <input type="radio" class="btn-check" name="e-unit" id="e-unit-cm" value="Centimeters"><label class="btn" for="e-unit-cm">Centimeters</label>
+                                </div>
+                                <div class="form-check form-switch stacked"><input class="form-check-input" type="checkbox" role="switch" id="e-bootstrap"><label class="form-check-label" for="e-bootstrap">Bootstrap (n &lt; 100)</label></div>
+                            </div>
+                            <hr>
+                            <div class="row gx-3">
+                                <div class="col-6"><button class="btn btn-gold w-100" type="submit" id="e-process"><i class="os-icon icon-play"></i> Estimate</button></div>
+                                <div class="col-6"><button class="btn btn-outline-gold w-100" type="button" id="e-clear"><i class="os-icon icon-eraser"></i> Clear</button></div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="app-results">
+                        <div id="e-results" hidden>
+                            <div class="panel">
+                                <div class="main-section-label">Summary</div>
+                                <div class="summary-row">
+                                    <div class="stat-tiles in-a-row" id="e-summary"></div>
+                                    <div id="e-plot" class="plot-single" data-filename="sid-estimation"></div>
+                                </div>
+                            </div>
+                            <div class="panel">
+                                <div class="main-section-label">Models</div>
+                                <div class="table-toolbar">
+                                    <button class="btn btn-gold btn-sm" type="button" id="e-copy"><i class="os-icon icon-copy"></i> <span>Copy</span></button>
+                                </div>
+                                <div id="e-table"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Association -->
+            <div class="tab-pane" id="tab-association" role="tabpanel">
+                <div class="app-layout">
+                    <div class="app-sidebar">
+                        <form class="well" id="a-form" autocomplete="off">
+                            <div class="sidebar-section-label">Reference</div>
+                            <select id="a-reference" multiple placeholder="Select reference group(s)..."></select>
+                            <div class="sidebar-section-label">Element</div>
+                            <div class="row gx-3">
+                                <div class="col-6"><select id="a-element" aria-label="Element"></select></div>
+                                <div class="col-6"><div class="btn-group segmented side-group w-100" role="group" aria-label="Side" id="a-side"><input type="radio" class="btn-check" name="a-side" id="a-side-left" value="left" checked><label class="btn" for="a-side-left">Left</label><input type="radio" class="btn-check" name="a-side" id="a-side-right" value="right"><label class="btn" for="a-side-right">Right</label></div></div>
+                            </div>
+                            <div class="sidebar-section-label">Known stature</div>
+                            <div class="input-group">
+                                <input class="form-control" type="number" id="a-known" min="0" max="999" step="any" aria-label="Known stature">
+                                <div class="btn-group segmented unit-toggle" role="group" aria-label="Known stature unit" id="a-unit"><input type="radio" class="btn-check" name="a-unit" id="a-unit-in" value="Inches" checked><label class="btn" for="a-unit-in">in</label><input type="radio" class="btn-check" name="a-unit" id="a-unit-cm" value="Centimeters"><label class="btn" for="a-unit-cm">cm</label></div>
+                            </div>
+                            <div class="sidebar-section-label">Measurements</div>
+                            <div class="measure-scroll"><div class="measure-list" id="a-values"></div></div>
+
+                            <div class="sidebar-section-label">Prediction interval</div>
+                            <div class="btn-group segmented w-100" role="group" aria-label="Prediction interval">
+                                <input type="radio" class="btn-check" name="a-interval" id="a-interval-90" value="0.9"><label class="btn" for="a-interval-90">90%</label>
+                                <input type="radio" class="btn-check" name="a-interval" id="a-interval-95" value="0.95" checked><label class="btn" for="a-interval-95">95%</label>
+                                <input type="radio" class="btn-check" name="a-interval" id="a-interval-99" value="0.99"><label class="btn" for="a-interval-99">99%</label>
+                            </div>
+                            <hr>
+                            <div class="row gx-3">
+                                <div class="col-6"><button class="btn btn-gold w-100" type="submit" id="a-process"><i class="os-icon icon-play"></i> Associate</button></div>
+                                <div class="col-6"><button class="btn btn-outline-gold w-100" type="button" id="a-clear"><i class="os-icon icon-eraser"></i> Clear</button></div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="app-results">
+                        <div id="a-results" hidden>
+                            <div class="panel">
+                                <div class="main-section-label">Summary</div>
+                                <div class="summary-row">
+                                    <div class="stat-tiles in-a-row" id="a-summary"></div>
+                                    <div id="a-plot" class="plot-single" data-filename="sid-association"></div>
+                                </div>
+                            </div>
+                            <div class="panel">
+                                <div class="main-section-label">Results</div>
+                                <div class="table-toolbar">
+                                    <button class="btn btn-gold btn-sm" type="button" id="a-copy"><i class="os-icon icon-copy"></i> <span>Copy</span></button>
+                                </div>
+                                <div class="table-responsive"><table class="table table-striped table-bordered table-hover" id="a-table"></table></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div class="modal" id="progress-modal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog"><div class="modal-content">
+            <div class="modal-header"><h4 class="modal-title">Analyzing...</h4></div>
+            <div class="modal-body">
+                <div class="progress"><div class="progress-bar progress-bar-striped progress-bar-animated" id="progress-bar" role="progressbar" style="width: 0%"></div></div>
+                <p class="progress-text" id="progress-text">Starting...</p>
+            </div>
+        </div></div>
+    </div>
+
+    <div class="modal fade" id="error-modal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered"><div class="modal-content error-dialog">
+            <div class="modal-body">
+                <p id="error-text"></p>
+                <button type="button" class="btn btn-gold" data-bs-dismiss="modal">Dismiss</button>
+            </div>
+        </div></div>
+    </div>
+
+    <div class="modal fade" id="image-modal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm"><div class="modal-content">
+            <form id="image-form" autocomplete="off">
+                <div class="modal-header"><h4 class="modal-title">Save plot</h4></div>
+                <div class="modal-body">
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label" for="image-width">Width (px)</label>
+                            <input class="form-control" type="number" id="image-width" min="100" max="8000" step="1" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label" for="image-height">Height (px)</label>
+                            <input class="form-control" type="number" id="image-height" min="100" max="8000" step="1" required>
+                        </div>
+                    </div>
+                    <label class="form-label mt-2" for="image-format">Format</label>
+                    <select class="form-select" id="image-format">
+                        <option value="png">PNG</option>
+                        <option value="svg">SVG</option>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-gold">Save</button>
+                </div>
+            </form>
+        </div></div>
+    </div>
+
+    <script src="vendor/bootstrap.bundle.min.js"></script>
+    <script src="vendor/tom-select.complete.min.js"></script>
+    <script src="vendor/plotly-cartesian.min.js"></script>
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
