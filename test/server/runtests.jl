@@ -26,6 +26,14 @@ end
 end
 
 # Rounding as the R SID rounded: the PI from the rounded bounds
+# A fit to reference values that do not vary has no slope: its plot is sent with nulls, not refused as an error
+@testset "plots without numbers" begin
+    sample = EstimationSample(["fem_01"], fill(170.0, 12), reshape(Union{Missing, Float64}[450.0 for _ in 1:12], 12, 1), fill(1, 12))
+    plot = SS.plot_json(model_plot(sample, ["fem_01"], 0.95))
+    @test all(isnothing, plot.fit) && plot.x == fill(450.0, 12)
+    @test occursin("null", JSON3.write(plot))
+end
+
 @testset "result rows" begin
     groups = [ReferenceGroup("B group", "B", "x", "y", Dict()), ReferenceGroup("A group", "A", "x", "y", Dict())]
     model = Model(["fem_01", "tib_01"], 820.0000000001, 66.516, 63.996, 69.03, 1113, 0.0482149, 26.98765, 0.73123, false, [1 => 13, 2 => 1100])
@@ -83,6 +91,9 @@ if HAVE_DB
         status, other = post("/api/estimate/plot", merge(estimation, (measurements = ["hum_01"],)))
         @test status == 200 && length(other.plot.x) == rows[1][7]
         @test post("/api/estimate/plot", merge(estimation, (measurements = ["rad_01"],)))[1] == 400
+        # a measurement named twice is one measurement, and a group named twice one group
+        @test post("/api/estimate/plot", merge(estimation, (measurements = ["hum_01", "hum_01"],)))[2].plot.x == other.plot.x
+        @test post("/api/estimate", merge(estimation, (references = vcat(trotter, trotter),)))[2].results.rows == rows
         # small groups are bootstrapped when asked for
         small = merge(estimation, (references = ["SI-TERRY black male"], bootstrap = true))
         status, boot = post("/api/estimate", small)
@@ -120,6 +131,9 @@ if HAVE_DB
         if !isempty(tiny)
             @test message("/api/estimate", merge(estimation, (references = tiny[1:1], values = (fem_01 = 450,)))) ==
                 (422, "Not enough reference data: every model needs at least 10 individuals")
+            # the plot of a model too small to fit is refused the same way, not drawn from a fit that cannot be made
+            @test message("/api/estimate/plot", merge(estimation, (references = tiny[1:1], values = (fem_01 = 450,), measurements = ["fem_01"]))) ==
+                (422, "Not enough reference data: a model needs at least 10 individuals")
         end
         association = (references = trotter, element = "femur", side = "left", interval = 0.95, unit = "Inches",
                        known_stature = 67, values = (fem_01 = 450,))

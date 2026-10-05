@@ -2,7 +2,7 @@
 
 julia_version = "1.13.1"
 manifest_format = "2.1"
-project_hash = "9f71118251d5407fbd2b6190a82a8e62e7273c41"
+project_hash = "ce7335f1ac7c0ef4027ea75d8f2c30b735bf0473"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
@@ -418,7 +418,7 @@ uuid = "5e1edfc5-7e50-4b8f-8b66-ec1035c3c6fc"
 version = "1.0.0"
 
 [[deps.SIDServer]]
-deps = ["Dates", "HTTP", "JSON3", "LibPQ", "PrecompileTools", "Random", "SIDJ", "Tables"]
+deps = ["Dates", "HTTP", "JSON3", "LibPQ", "PrecompileTools", "SIDJ", "Tables"]
 path = "."
 uuid = "2878752a-4673-47f8-9556-66ce4c472b02"
 version = "1.0.0"

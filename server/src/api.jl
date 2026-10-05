@@ -85,7 +85,8 @@ function selected_groups(snapshot::ReferenceSnapshot, labels)
     isempty(labels) && bad_request("Select at least one reference group")
     by_label = Dict(group.label => group for group in snapshot.groups)
     all(label -> haskey(by_label, label), labels) || throw(RequestError(409, REFERENCE_CHANGED))
-    return [by_label[label] for label in labels]
+    # a group named twice is one group: its individuals are not counted twice
+    return [by_label[label] for label in unique(labels)]
 end
 
 # Whether any selected group has a value for a measurement, on either side.
@@ -113,6 +114,10 @@ end
 
 json_cell(value::AbstractFloat) = isfinite(value) ? value : nothing
 json_cell(value) = value
+
+# A plot's columns, with anything that is not a number (a fit to reference
+# values that do not vary) sent as null
+plot_json(plot::NamedTuple) = map(column -> json_cell.(column), plot)
 
 table_json(columns, rows) = (columns = columns, rows = [[json_cell(cell) for cell in row] for row in rows])
 
@@ -167,7 +172,7 @@ function estimation_input(state::AppState, body)
     codes = entered_codes(entered, offered, groups)
     sample = estimation_sample(groups, side, codes; inches)
     (isempty(sample.stature) || all(ismissing, sample.stature)) && cannot_analyse(NO_REFERENCE)
-    return (; groups, level, inches, sample, values = [entered[code] for code in codes])
+    return (; groups, level, sample, values = [entered[code] for code in codes])
 end
 
 # Every model, in the order they are made: one measurement, then two, and so
@@ -182,16 +187,19 @@ function estimate_handler(state::AppState, req::HTTP.Request)
     rows = [estimate_row(model, input.groups) for model in result.models]
     selected = argmin(i -> (rows[i][1], i), eachindex(rows))
     plot = model_plot(input.sample, result.models[selected].measurements, input.level)
-    return json_response(200, (results = table_json(ESTIMATE_COLUMNS, rows), selected = selected - 1, plot = plot))
+    return json_response(200, (results = table_json(ESTIMATE_COLUMNS, rows), selected = selected - 1, plot = plot_json(plot)))
 end
 
 # The plot of another model, chosen in the results table
 function estimate_plot_handler(state::AppState, req::HTTP.Request)
     body = read_json(req)
     input = estimation_input(state, body)
-    model = lowercase.(list_field(body, :measurements))
+    model = unique(lowercase.(list_field(body, :measurements)))
     issubset(model, input.sample.measurements) && !isempty(model) || bad_request("measurements must be some of those entered")
-    return json_response(200, (plot = model_plot(input.sample, model, input.level),))
+    plot = model_plot(input.sample, model, input.level)
+    # a model the estimate would not make, or one the reference data no longer supports
+    length(plot.x) < MIN_REFERENCE && cannot_analyse("Not enough reference data: a model needs at least $MIN_REFERENCE individuals")
+    return json_response(200, (plot = plot_json(plot),))
 end
 
 # --- Stature association ---
@@ -217,5 +225,5 @@ function associate_handler(state::AppState, req::HTTP.Request)
     value = sum(entered[code] for code in codes)
     result = analysis(() -> associate(sample, value, Float64(known), level))
     return json_response(200, (results = table_json(ASSOCIATION_COLUMNS, [association_row(result, groups)]),
-                               plot = association_plot(sample, level)))
+                               plot = plot_json(association_plot(sample, level))))
 end
