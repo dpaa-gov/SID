@@ -7,7 +7,7 @@
 # Needs the same ARDS the cases were recorded against. Prints a summary and
 # writes every difference to test/parity/data/differences.txt.
 
-using JSON3
+using JSON
 using HTTP
 using SIDServer
 const SS = SIDServer
@@ -15,18 +15,18 @@ const SS = SIDServer
 const FILE = get(ARGS, 1, joinpath(@__DIR__, "data", "r_results.json"))
 const OUT = joinpath(dirname(FILE), "differences.txt")
 
-recorded = JSON3.read(read(FILE))
+recorded = JSON.parse(read(FILE))
 config = SS.Config()
 state = SS.AppState(config)
 snapshot = SS.load_reference(config)
 @atomic state.snapshot = snapshot
-@atomic state.meta_json = JSON3.write(SS.build_meta(snapshot, config))
+@atomic state.meta_json = JSON.json(SS.build_meta(snapshot, config))
 @atomic state.last_attempt = SS.now(SS.UTC)
 respond = SS.handler(state)
 
 function post(path, body)
-    response = respond(HTTP.Request("POST", path, ["Content-Type" => "application/json"], JSON3.write(body)))
-    return response.status, JSON3.read(response.body)
+    response = respond(HTTP.Request("POST", path, ["Content-Type" => "application/json"], JSON.json(body)))
+    return response.status, JSON.parse(response.body)
 end
 
 # jsonlite writes a one-element vector as a single value
@@ -134,7 +134,7 @@ for (i, case) in enumerate(recorded.cases)
 
     if case.kind == "association"
         row = only(julia.results.rows)
-        t = (; (name => only(column) for (name, column) in pairs(r.table))...)
+        t = (; (Symbol(name) => only(column) for (name, column) in pairs(r.table))...)
         compare_number(i, "PI", col(row, "PI"), t.PI; digits = 2)
         compare_number(i, "Value", col(row, "Value"), t.value; digits = 2)
         compare_number(i, "Point estimate", col(row, "Point estimate"), round(t[Symbol("point estimate")]; digits = 2); digits = 2)

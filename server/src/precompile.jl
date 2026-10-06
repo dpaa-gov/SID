@@ -27,12 +27,12 @@ using PrecompileTools: @setup_workload, @compile_workload
     snapshot = ReferenceSnapshot(groups, measurements, ["femur", "tibia"], now(UTC))
     config = Config("", 5432, "", "", "", 3838, 30, joinpath(REPO_ROOT, "web"),
         joinpath(pkgdir(@__MODULE__), "config"), "precompile")
-    json(body) = Vector{UInt8}(JSON3.write(body))
+    json(body) = Vector{UInt8}(JSON.json(body))
 
     @compile_workload begin
         state = AppState(config)
         @atomic state.snapshot = snapshot
-        @atomic state.meta_json = JSON3.write(build_meta(snapshot, config))
+        @atomic state.meta_json = JSON.json(build_meta(snapshot, config))
         @atomic state.last_attempt = now(UTC) # so nothing tries to reach ARDS
         respond = handler(state)
         post(path, body) = respond(HTTP.Request("POST", path, ["Content-Type" => "application/json"], json(body)))

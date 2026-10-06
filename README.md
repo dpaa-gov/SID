@@ -35,7 +35,7 @@ On a screen wider than 1920 pixels the page is shown larger, so it does not sit 
 
 **Bootstrap.** With **Bootstrap (n < 100)** on, a model fitted to fewer than 100 individuals gets its interval by resampling instead; the **Method** column says which models did. The point estimate stays the least-squares one. For each of 50,000 draws the residuals are resampled with replacement and added to the fitted values, the line is refitted and its prediction at the specimen taken, and noise from the full fit's residual spread is added (a draw from a normal distribution with that spread); the interval is the percentiles of those draws. Resampling residuals rather than individuals keeps the measurements fixed, so every refit is well defined and the spread is not understated by repeated individuals.
 
-The draws are random but reproducible. They start from a seed worked out from the model's own data: the reference individuals' summed measurements and statures, the specimen's value, the interval and the number of draws. So the same specimen against the same reference data always gets the same interval, in whatever order the reference groups were chosen and whatever other measurements were entered, and a later release gives it again. Change any of those, or the reference data in ARDS, and the draws are new ones. With 50,000 draws a bound lies within about 0.3% of the interval's width of the value endless draws would give. (The R SID made 5,000 draws from an arbitrary start, so its bounds moved by about 1% of the width from one run to the next.)
+The draws are random but reproducible. They start from a seed worked out from the model's own data: the reference individuals' summed measurements and statures, the specimen's value, the interval and the number of draws. So the same specimen against the same reference data always gets the same interval, in whatever order the reference groups were chosen and whatever other measurements were entered, and a later release gives it again. Change any of those, or the reference data in ARDS, and the draws are new ones. With 50,000 draws a bound lies within about 0.3% of the interval's width of the value endless draws would give.
 
 **Units.** Measurements are in millimetres. ARDS holds stature in centimetres; in inches it is divided by 2.54.
 
@@ -75,21 +75,11 @@ All tests live in `test/`.
 
 | What | Command | Needs |
 |---|---|---|
-| `test/sidj`: the method, on made-up data and against numbers from R | `PROJECT=SIDJ dev/julia.sh -e 'using Pkg; Pkg.test()'` | nothing |
+| `test/sidj`: the method, on made-up data and against independently computed values | `PROJECT=SIDJ dev/julia.sh -e 'using Pkg; Pkg.test()'` | nothing |
 | `test/server`: the API and its refusals | `dev/julia.sh -e 'using Pkg; Pkg.test()'` | ARDS |
-| `test/parity`: the R/Shiny SID 0.1.0 against this one | see below | ARDS, Docker |
 | `test/browser`: the real page in a headless browser, compared with the API | see below | a running server |
 
 The first two also run on GitHub for every push (`.github/workflows/tests.yml`), where the server's tests skip the parts that need ARDS. Each release additionally builds the image and checks that it starts and serves the page (`.github/workflows/release.yml`).
-
-**Comparison with the R SID.** `test/parity/capture.sh` runs the R SID's own analysis code, taken from its last commit, on a few thousand made-up cases against ARDS in R 4.4.3, and saves what it gives. `compare.jl` sends the same cases through this server and reports every difference:
-
-```sh
-test/parity/capture.sh                  # about 25 minutes, most of it the R bootstrap
-dev/julia.sh test/parity/compare.jl
-```
-
-Against ARDS of October 2026, over 3,161 cases and 38,907 models, every refusal and every number matched, but for one estimate lying exactly on a rounding boundary (166.795, which the two round to 166.79 and 166.80 from the last bit of the arithmetic). Bootstrap bounds can only match within the randomness of the draws: over 4,113 bootstrapped models they differed by a median of 1.0% of the interval width, without bias, as two runs of the R SID differ from each other.
 
 **Browser test.** After changing anything in `web/`, run it against a running server:
 
@@ -160,7 +150,7 @@ web/                  The page: index.html, css/, js/, vendored libraries
 test/                 All tests
   sidj/                 the method, on made-up data; no database
   server/               the API against ARDS
-  parity/               the R SID against this one
+  parity/               results checked against recorded reference results
   browser/              the page in a headless browser
 build/Dockerfile      Compiles the Julia side into a standalone program
 Dockerfile            What Atlas builds
@@ -171,7 +161,7 @@ VERSION               The version shown in the app
 
 ## Open questions
 
-**The bootstrap's observation noise.** Each bootstrap draw adds noise to the refitted prediction from a normal distribution whose spread is the residual standard error of the one full fit. The bootstrap is used for small reference samples, and that is where this is least sure: with few individuals their scatter may not be normal, and its spread is itself an estimate, yet every draw uses it as if it were known. As most of an interval's width comes from this noise rather than from the refitted lines, the interval rests largely on that assumption. One effect is that it comes out narrower than the least-squares interval, which allows for the uncertain spread by using the t distribution: for the twelve made-up individuals in `test/sidj`, 3.96 against 4.53. Whether the noise should instead be drawn from the resampled residuals themselves, which assumes no shape, is undecided; the procedure is kept as it was specified for the R SID until it is.
+**The bootstrap's observation noise.** Each bootstrap draw adds noise to the refitted prediction from a normal distribution whose spread is the residual standard error of the one full fit. The bootstrap is used for small reference samples, and that is where this is least sure: with few individuals their scatter may not be normal, and its spread is itself an estimate, yet every draw uses it as if it were known. As most of an interval's width comes from this noise rather than from the refitted lines, the interval rests largely on that assumption. One effect is that it comes out narrower than the least-squares interval, which allows for the uncertain spread by using the t distribution: for the twelve made-up individuals in `test/sidj`, 3.96 against 4.53. Whether the noise should instead be drawn from the resampled residuals themselves, which assumes no shape, is undecided; the procedure is kept as it was specified until it is.
 
 A related point, about computing and not about the method: with the noise drawn at random, the lowest and highest 2.5% of the draws are where chance shows most, which is why a bound still differs from its limiting value in the third decimal place or so. Since the distribution the noise is drawn from is known, the percentiles could be worked out from it directly, giving the same interval with far less of that chance left in. This is not done, for the same reason: it would no longer be the procedure as specified.
 

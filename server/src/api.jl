@@ -12,11 +12,11 @@ cannot_analyse(message) = throw(RequestError(422, message))
 function read_json(req::HTTP.Request)
     length(req.body) <= MAX_BODY_BYTES || throw(RequestError(413, "The request is too large"))
     body = try
-        JSON3.read(req.body)
+        JSON.parse(req.body)
     catch
         bad_request("The request body is not valid JSON")
     end
-    body isa JSON3.Object || bad_request("The request body must be a JSON object")
+    body isa JSON.Object || bad_request("The request body must be a JSON object")
     return body
 end
 
@@ -61,15 +61,21 @@ function flag_field(body, name)
     return value
 end
 
+# A number from a request as an ordinary one, or NaN for anything else. A
+# number too large for one arrives as a big number that is finite itself but
+# infinite once converted, so it is converted before it is checked.
+plain_number(value) = value isa Real ? Float64(value) : NaN
+
 # Typed-in measurements by code, blank ones left out
 function values_field(body, name)
     value = field(body, name)
-    value isa JSON3.Object || bad_request("$name must be an object of measurement values")
+    value isa JSON.Object || bad_request("$name must be an object of measurement values")
     entries = Dict{String, Float64}()
     for (code, number) in pairs(value)
         number === nothing && continue
-        number isa Real && isfinite(number) && number > 0 || bad_request("$(uppercasefirst(String(code))) must be a number above 0")
-        entries[lowercase(String(code))] = number
+        amount = plain_number(number)
+        isfinite(amount) && amount > 0 || bad_request("$(uppercasefirst(String(code))) must be a number above 0")
+        entries[lowercase(String(code))] = amount
     end
     return entries
 end
@@ -217,13 +223,14 @@ function associate_handler(state::AppState, req::HTTP.Request)
     codes = entered_codes(entered, filter(m -> m.bone == element, snapshot.measurements), groups)
     known = get(body, :known_stature, nothing)
     known === nothing && cannot_analyse("Enter a known stature")
-    known isa Real && isfinite(known) && known > 0 || bad_request("The known stature must be a number above 0")
+    stature = plain_number(known)
+    isfinite(stature) && stature > 0 || bad_request("The known stature must be a number above 0")
     sample = association_sample(groups, element, side, codes; inches)
     isempty(sample.stature) && cannot_analyse(NO_REFERENCE)
     length(sample.stature) < MIN_REFERENCE &&
         cannot_analyse("Not enough reference data: at least $MIN_REFERENCE individuals are needed")
     value = sum(entered[code] for code in codes)
-    result = analysis(() -> associate(sample, value, Float64(known), level))
+    result = analysis(() -> associate(sample, value, stature, level))
     return json_response(200, (results = table_json(ASSOCIATION_COLUMNS, [association_row(result, groups)]),
                                plot = plot_json(association_plot(sample, level))))
 end

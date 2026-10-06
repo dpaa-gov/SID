@@ -1,6 +1,6 @@
 using Test
 using HTTP
-using JSON3
+using JSON
 using SIDServer
 using SIDJ
 const SS = SIDServer
@@ -31,7 +31,7 @@ end
     sample = EstimationSample(["fem_01"], fill(170.0, 12), reshape(Union{Missing, Float64}[450.0 for _ in 1:12], 12, 1), fill(1, 12))
     plot = SS.plot_json(model_plot(sample, ["fem_01"], 0.95))
     @test all(isnothing, plot.fit) && plot.x == fill(450.0, 12)
-    @test occursin("null", JSON3.write(plot))
+    @test occursin("null", JSON.json(plot))
 end
 
 @testset "result rows" begin
@@ -47,14 +47,14 @@ if HAVE_DB
     snapshot = SS.load_reference(config)
     state = SS.AppState(config)
     @atomic state.snapshot = snapshot
-    @atomic state.meta_json = JSON3.write(SS.build_meta(snapshot, config))
+    @atomic state.meta_json = JSON.json(SS.build_meta(snapshot, config))
     @atomic state.last_attempt = SS.now(SS.UTC)
     respond = SS.handler(state)
     function post(path, body)
-        response = respond(HTTP.Request("POST", path, ["Content-Type" => "application/json"], JSON3.write(body)))
-        return response.status, JSON3.read(response.body)
+        response = respond(HTTP.Request("POST", path, ["Content-Type" => "application/json"], JSON.json(body)))
+        return response.status, JSON.parse(response.body)
     end
-    meta = JSON3.read(@atomic state.meta_json)
+    meta = JSON.parse(@atomic state.meta_json)
 
     # What the page builds its forms from must describe the reference data as loaded
     @testset "page metadata" begin
@@ -157,7 +157,7 @@ if HAVE_DB
             page = HTTP.get("http://127.0.0.1:8766/")
             @test page.status == 200 && occursin("<title>SID</title>", String(page.body))
             response = HTTP.get("http://127.0.0.1:8766/api/meta")
-            @test response.status == 200 && JSON3.read(response.body).version == config.version
+            @test response.status == 200 && JSON.parse(response.body).version == config.version
             # a second page load inside the max age reuses the snapshot
             loaded_at = (@atomic live.snapshot).loaded_at
             HTTP.get("http://127.0.0.1:8766/api/meta")

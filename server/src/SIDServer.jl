@@ -2,7 +2,7 @@ module SIDServer
 
 using Dates
 using HTTP
-using JSON3
+using JSON
 using LibPQ
 using Tables
 using SIDJ
