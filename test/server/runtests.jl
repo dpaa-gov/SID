@@ -84,7 +84,7 @@ end
     config = SS.Config("", 5432, "", "", "", 3838, 30, joinpath(SS.REPO_ROOT, "web"), joinpath(pkgdir(SS), "config"), "test")
     state = SS.AppState(config)
     @atomic state.last_attempt = SS.now(SS.UTC) # so nothing tries to reach ARDS
-    @test SS.MAX_CONNECTIONS == 1000 && SS.IDLE_SECONDS == 60 # above the 30 seconds Atlas allows an answer
+    @test SS.MAX_CONNECTIONS == 10_000 && SS.IDLE_SECONDS == 60 # above the 30 seconds Atlas allows an answer
     # a server that holds two connections and closes one silent for a second
     server = SS.listen(SS.handler(state), "127.0.0.1", 8774; max_connections = 2, idle_seconds = 1)
     health = "GET /healthz HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"
