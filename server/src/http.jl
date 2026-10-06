@@ -127,12 +127,104 @@ function handler(state::AppState)
     end
 end
 
+# --- Reading a request, within a size limit ---
+
+# HTTP.jl's own way of handing a handler its request reads the whole body
+# first, whatever its size, so a request of a gigabyte or two would fill the
+# pod's memory before any check could refuse it. Requests are read here
+# instead, and no more of one is kept than its route allows.
+# How much of a refused request is read and thrown away so that its sender
+# gets the answer; one larger than this is refused and the connection closed.
+const DISCARD_BYTES = 32 * 1024^2
+
+# Every request to SID is small: a few typed measurements.
+body_limit(target) = MAX_BODY_BYTES
+
+# Reads a request's body up to `limit`. Returns nothing when it is larger:
+# by the size it declares, without reading it, or, where it declares none,
+# as soon as more than the limit has arrived.
+function read_body(stream, limit)
+    declared = tryparse(Int, HTTP.header(stream.message, "Content-Length"))
+    declared !== nothing && declared > limit && return nothing
+    body = UInt8[]
+    while !eof(stream)
+        append!(body, readavailable(stream))
+        length(body) > limit && return nothing
+    end
+    return body
+end
+
+# Reads on, keeping nothing, until the request ends or `most` bytes have
+# gone. Returns whether the whole request has now been read.
+function discard(stream, most)
+    declared = tryparse(Int, HTTP.header(stream.message, "Content-Length"))
+    declared !== nothing && declared > most && return false
+    gone = 0
+    while !eof(stream)
+        gone += length(readavailable(stream))
+        gone > most && return false
+    end
+    return true
+end
+
+# What the server runs for each request: `handle` is given the request once
+# its body has been read within the limit.
+function limited(handle)
+    return function (stream::HTTP.Stream)
+        request::HTTP.Request = stream.message
+        limit = body_limit(request.target)
+        body = read_body(stream, limit)
+        finished = true
+        if body === nothing
+            @warn "Request refused: larger than its limit" target = request.target limit declared = HTTP.header(request, "Content-Length", "not given")
+            response = error_response(413, REQUEST_TOO_LARGE)
+            HTTP.setheader(response, "Connection" => "close")
+            finished = discard(stream, DISCARD_BYTES)
+        else
+            request.body = body
+            response = handle(request)
+        end
+        request.response = response
+        response.request = request
+        HTTP.startwrite(stream)
+        write(stream, response.body)
+        if !finished
+            # The rest of the request is not going to be read: the answer is
+            # completed and the connection dropped. HTTP.jl is told the
+            # connection went away, which it takes quietly; leaving it to find
+            # a request half read would be logged as a failure of the handler.
+            HTTP.closewrite(stream)
+            close(stream)
+            throw(Base.IOError("request larger than its limit; connection closed", Base.UV_ECONNABORTED))
+        end
+        return
+    end
+end
+
+# --- Connections ---
+
+# The most connections held at once; more wait their turn. Each costs about
+# 33 KB, so this bounds what any number of them can take.
+const MAX_CONNECTIONS = 1000
+# A connection that has sent nothing for this long is closed, so that ones
+# left open and silent do not keep the places. HTTP.jl counts the time from
+# the last data received, including while an answer is being worked out, so
+# this must stay above the longest any answer takes: Atlas allows 30 seconds.
+# It looks every one to two times this long, so a silent connection goes
+# within one to three minutes.
+const IDLE_SECONDS = 60
+
+# Listens with the limits above. HTTP.jl's own log messages are turned off:
+# it would otherwise write a warning for every idle connection it closes.
+listen(handle, host, port; max_connections = MAX_CONNECTIONS, idle_seconds = IDLE_SECONDS) =
+    HTTP.serve!(limited(handle), host, port; stream = true, max_connections, readtimeout = idle_seconds, verbose = -1)
+
 # Starts listening straight away; the first reference load runs in the
 # background so the health check answers while the database is slow or down.
 function serve(config::Config; host = "0.0.0.0", port = config.port)
     state = AppState(config)
     errormonitor(Threads.@spawn ensure_fresh!(state))
-    server = HTTP.serve!(handler(state), host, port)
+    server = listen(handler(state), host, port)
     @info "SID listening" host port version = config.version
     return server, state
 end

@@ -1,6 +1,7 @@
 # Analysis endpoints: request validation, stature estimation and association.
 
 const MAX_BODY_BYTES = 64 * 1024
+const REQUEST_TOO_LARGE = "The request is too large"
 const REFERENCE_CHANGED = "The reference data has changed. Reload the page and try again."
 const NO_MEASUREMENTS = "Enter at least one measurement"
 const NO_REFERENCE = "No reference data available for this selection"
@@ -10,7 +11,7 @@ bad_request(message) = throw(RequestError(400, message))
 cannot_analyse(message) = throw(RequestError(422, message))
 
 function read_json(req::HTTP.Request)
-    length(req.body) <= MAX_BODY_BYTES || throw(RequestError(413, "The request is too large"))
+    length(req.body) <= MAX_BODY_BYTES || throw(RequestError(413, REQUEST_TOO_LARGE))
     body = try
         JSON.parse(req.body)
     catch
