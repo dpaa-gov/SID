@@ -24,7 +24,7 @@ export const getJSON = (path) => request(path);
 export const postJSON = (path, body) =>
     request(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
-export const capFirst = (text) => text.charAt(0).toUpperCase() + text.slice(1);
+const capFirst = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 
 // How bones are shown: "Humerus". The lower-case name from ARDS stays the value that is sent.
 export const boneName = (value) => ({ text: capFirst(value) });
@@ -291,7 +291,7 @@ function toggleLabels() {
 const LABEL_ICON = { width: 24, height: 24,
     path: "M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z" };
 
-export const PLOT_CONFIG = {
+const PLOT_CONFIG = {
     displaylogo: false,
     responsive: true,
     // the only two buttons on the toolbar
@@ -303,7 +303,7 @@ export const PLOT_CONFIG = {
 // Shared by every plot. Toolbar colours are set explicitly so they do not
 // depend on the theme's link colour. Plots stay as drawn: there is no button
 // to undo a zoom, so dragging on the plot or along an axis does nothing.
-export const PLOT_LAYOUT = {
+const PLOT_LAYOUT = {
     dragmode: false,
     hovermode: false, // the app's own hover labels instead (plotHover)
     template: { layout: { xaxis: { fixedrange: true }, yaxis: { fixedrange: true } } },
@@ -312,7 +312,7 @@ export const PLOT_LAYOUT = {
     modebar: { color: "rgba(68, 68, 68, 0.35)", activecolor: "#d4a843", bgcolor: "rgba(255, 255, 255, 0)" },
     showlegend: false,
 };
-export const COLORS = { gold: "#d4a843" };
+const COLORS = { gold: "#d4a843" };
 
 // The reference sample, the fitted line, its prediction interval, and the
 // specimen in gold, labelled on the side away from the nearer edge
@@ -407,7 +407,7 @@ function showHover(gd, event) {
 }
 
 // Gives a plot these hover labels; once is enough for a plot that is redrawn
-export function plotHover(id) {
+function plotHover(id) {
     const gd = $(id);
     if (gd.dataset.plotHover) return;
     gd.dataset.plotHover = "on";

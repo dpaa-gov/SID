@@ -98,6 +98,11 @@ if HAVE_DB
         small = merge(estimation, (references = ["SI-TERRY black male"], bootstrap = true))
         status, boot = post("/api/estimate", small)
         @test status == 200 && all(r -> r[11] == "Bootstrap", boot.results.rows)
+        # the same request again gives the same intervals, with the groups in either order
+        two = ["SI-TERRY black male", "CMNH black male"]
+        first = post("/api/estimate", merge(small, (references = two,)))[2].results.rows
+        @test post("/api/estimate", merge(small, (references = reverse(two),)))[2].results.rows == first
+        @test any(r -> r[11] == "Bootstrap", first)
     end
 
     @testset "association" begin

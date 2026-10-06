@@ -23,15 +23,19 @@ Bones are listed head to toe, by the number each measurement has in the data col
 ## Using the app
 
 1. Choose one or more **reference groups**. Selecting several pools their individuals.
-2. **Estimation:** choose the side and type the measurements. **Association:** choose the element and side, type the known stature and the measurements.
-3. Under **Settings**, choose the prediction interval (90, 95 or 99%) and whether stature is in inches or centimetres. Estimation can also bootstrap its intervals.
+2. **Estimation:** choose the side and type the measurements. **Association:** choose the element and side, type the known stature, in inches or centimetres as the toggle beside it says, and the measurements.
+3. Choose the **prediction interval** (90, 95 or 99%). Estimation's **Settings** also hold whether stature is given in inches or centimetres, and whether small samples are bootstrapped.
 4. Press **Estimate** or **Associate**.
+
+On a screen wider than 1920 pixels the page is shown larger, so it does not sit small in a corner: 1.25 times at 2560 pixels, 1.75 at 3840.
 
 **The method.** A model sums the measurements it uses. Estimation regresses stature on that sum over the reference individuals who have every one of the measurements, on the chosen side, joining an individual's bones; association regresses the sum of one bone's measurements on stature. Both fit ordinary least squares and give the normal-theory prediction interval. Association's p-value is a two-sided t-test of the specimen's sum against the value predicted at the known stature. A model needs at least 10 reference individuals.
 
 **Estimation results.** One row per model, sorted by **PI**, the half-width of the prediction interval (point estimate minus lower bound). The narrowest is chosen to begin with; clicking another row shows its plot and summary. Hovering a row's sample size `n` shows which reference groups it came from. **Copy** puts the chosen model on the clipboard under the column headings, with the reference groups, ready to paste into a spreadsheet or report.
 
-**Bootstrap.** With **Bootstrap (n < 100)** on, a model fitted to fewer than 100 individuals gets its interval by resampling instead; the **Method** column says which models did. The point estimate stays the least-squares one. For each of 5,000 draws the residuals are resampled with replacement and added to the fitted values, the line is refitted and its prediction at the specimen taken, and noise from the full fit's residual spread is added; the interval is the percentiles of those draws. Resampling residuals rather than individuals keeps the measurements fixed, so every refit is well defined and the spread is not understated by repeated individuals. The draws are random, so the bounds move by about 1% of the interval's width between runs.
+**Bootstrap.** With **Bootstrap (n < 100)** on, a model fitted to fewer than 100 individuals gets its interval by resampling instead; the **Method** column says which models did. The point estimate stays the least-squares one. For each of 50,000 draws the residuals are resampled with replacement and added to the fitted values, the line is refitted and its prediction at the specimen taken, and noise from the full fit's residual spread is added (a draw from a normal distribution with that spread); the interval is the percentiles of those draws. Resampling residuals rather than individuals keeps the measurements fixed, so every refit is well defined and the spread is not understated by repeated individuals.
+
+The draws are random but reproducible. They start from a seed worked out from the model's own data: the reference individuals' summed measurements and statures, the specimen's value, the interval and the number of draws. So the same specimen against the same reference data always gets the same interval, in whatever order the reference groups were chosen and whatever other measurements were entered, and a later release gives it again. Change any of those, or the reference data in ARDS, and the draws are new ones. With 50,000 draws a bound lies within about 0.3% of the interval's width of the value endless draws would give. (The R SID made 5,000 draws from an arbitrary start, so its bounds moved by about 1% of the width from one run to the next.)
 
 **Units.** Measurements are in millimetres. ARDS holds stature in centimetres; in inches it is divided by 2.54.
 
@@ -164,6 +168,12 @@ Dockerfile            What Atlas builds
 dev/                  Local scripts
 VERSION               The version shown in the app
 ```
+
+## Open questions
+
+**The bootstrap's observation noise.** Each bootstrap draw adds noise to the refitted prediction from a normal distribution whose spread is the residual standard error of the one full fit. The bootstrap is used for small reference samples, and that is where this is least sure: with few individuals their scatter may not be normal, and its spread is itself an estimate, yet every draw uses it as if it were known. As most of an interval's width comes from this noise rather than from the refitted lines, the interval rests largely on that assumption. One effect is that it comes out narrower than the least-squares interval, which allows for the uncertain spread by using the t distribution: for the twelve made-up individuals in `test/sidj`, 3.96 against 4.53. Whether the noise should instead be drawn from the resampled residuals themselves, which assumes no shape, is undecided; the procedure is kept as it was specified for the R SID until it is.
+
+A related point, about computing and not about the method: with the noise drawn at random, the lowest and highest 2.5% of the draws are where chance shows most, which is why a bound still differs from its limiting value in the third decimal place or so. Since the distribution the noise is drawn from is known, the percentiles could be worked out from it directly, giving the same interval with far less of that chance left in. This is not done, for the same reason: it would no longer be the procedure as specified.
 
 ## Acknowledgments
 

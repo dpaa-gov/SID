@@ -4,7 +4,7 @@
 
 const MIN_REFERENCE = 10      # fewest reference individuals a model may be fitted to
 const BOOTSTRAP_BELOW = 100   # with bootstrap on, samples smaller than this use it
-const BOOTSTRAP_DRAWS = 5000
+const BOOTSTRAP_DRAWS = 50_000
 
 struct Model
     measurements::Vector{String}
@@ -67,7 +67,7 @@ end
 # `values` are the specimen's measurements, in the order of the sample's
 # measurements; each is a model on its own and in combination with the others.
 function estimate(sample::EstimationSample, values::AbstractVector{<:Real}, level::Real;
-                  bootstrap::Bool = false, rng::AbstractRNG = Random.default_rng())
+                  bootstrap::Bool = false, rng::Union{Nothing, AbstractRNG} = nothing)
     length(values) == length(sample.measurements) ||
         throw(ArgumentError("one value is needed for each of the sample's measurements"))
     models = Model[]

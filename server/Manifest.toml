@@ -412,7 +412,7 @@ uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 version = "1.0.0"
 
 [[deps.SIDJ]]
-deps = ["Random", "Rmath", "Statistics"]
+deps = ["Random", "Rmath", "SHA", "StableRNGs", "Statistics"]
 path = "../SIDJ"
 uuid = "5e1edfc5-7e50-4b8f-8b66-ec1035c3c6fc"
 version = "1.0.0"
@@ -449,6 +449,13 @@ version = "1.2.0"
 [[deps.Sockets]]
 uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
 version = "1.11.0"
+
+[[deps.StableRNGs]]
+deps = ["Random"]
+git-tree-sha1 = "4f96c596b8c8258cc7d3b19797854d368f243ddc"
+registries = "General"
+uuid = "860ef19b-820b-49d6-a774-d7a799459cd3"
+version = "1.0.4"
 
 [[deps.Statistics]]
 deps = ["LinearAlgebra"]

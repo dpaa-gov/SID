@@ -31,15 +31,33 @@ end
 @testset "bootstrap interval" begin
     line = fit_line(X, Y)
     ols = prediction(line, 47, 0.95)
-    boot = bootstrap_prediction(X, Y, 47, 0.95; rng = Xoshiro(1))
+    boot = bootstrap_prediction(X, Y, 47, 0.95)
     # the point estimate is the full fit's; only the bounds are resampled
     @test boot.fit == ols.fit
     @test boot.lower < boot.fit < boot.upper
     # close to the normal-theory interval for data this well behaved
     @test abs((boot.upper - boot.lower) / (ols.upper - ols.lower) - 1) < 0.15
-    # the same random numbers give the same interval
-    @test bootstrap_prediction(X, Y, 47, 0.95; rng = Xoshiro(1)) == boot
-    @test bootstrap_prediction(X, Y, 47, 0.95; rng = Xoshiro(2)) != boot
+end
+
+# The draws start from a seed made from the data, so an interval can be
+# reproduced: by the same request again, and by a later release.
+@testset "the same data gives the same bootstrap interval" begin
+    boot = bootstrap_prediction(X, Y, 47, 0.95)
+    @test bootstrap_prediction(X, Y, 47, 0.95) == boot
+    # whatever order the reference individuals come in
+    order = [7, 2, 12, 5, 1, 9, 3, 11, 4, 8, 6, 10]
+    again = bootstrap_prediction(X[order], Y[order], 47, 0.95)
+    @test again.lower == boot.lower && again.upper == boot.upper
+    # another specimen, level or number of draws has draws of its own
+    @test bootstrap_seed(X, Y, 47, 0.95, BOOTSTRAP_DRAWS) == 0x3486986fb42d7d38
+    @test allunique([bootstrap_seed(X, Y, 47, 0.95, 50_000), bootstrap_seed(X, Y, 47.1, 0.95, 50_000),
+                     bootstrap_seed(X, Y, 47, 0.9, 50_000), bootstrap_seed(X, Y, 47, 0.95, 5_000)])
+    # These numbers must not move: recorded on 2026-10-05 with 50,000 draws.
+    # A change here changes every bootstrapped interval SID has reported.
+    @test BOOTSTRAP_DRAWS == 50_000
+    @test boot.lower == 165.51951285967607 && boot.upper == 169.48148542326115
+    # a generator can still be given, for other draws
+    @test bootstrap_prediction(X, Y, 47, 0.95; rng = Xoshiro(1)).lower != boot.lower
 end
 
 # ---------- reference groups ----------
@@ -106,8 +124,10 @@ end
     tiny = group("Tiny", 9)
     @test isempty(estimate(estimation_sample([tiny], "left", ["fem_01"]), [470.0], 0.95).models)
     sample = estimation_sample([BIG, SMALL], "left", ["fem_01"])
-    big = estimate(estimation_sample([BIG], "left", ["fem_01"]), [470.0], 0.95; bootstrap = true, rng = Xoshiro(3))
-    small = estimate(estimation_sample([SMALL], "left", ["fem_01"]), [470.0], 0.95; bootstrap = true, rng = Xoshiro(3))
+    big = estimate(estimation_sample([BIG], "left", ["fem_01"]), [470.0], 0.95; bootstrap = true)
+    small = estimate(estimation_sample([SMALL], "left", ["fem_01"]), [470.0], 0.95; bootstrap = true)
+    # asked again, the same interval
+    @test estimate(estimation_sample([SMALL], "left", ["fem_01"]), [470.0], 0.95; bootstrap = true).models[1].lower == small.models[1].lower
     @test !only(big.models).bootstrap && only(small.models).bootstrap
     off = only(estimate(estimation_sample([SMALL], "left", ["fem_01"]), [470.0], 0.95).models)
     @test only(small.models).fit == off.fit && only(small.models).lower != off.lower

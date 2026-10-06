@@ -5,6 +5,8 @@ module SIDJ
 # regression on reference populations.
 
 using Random
+using SHA
+using StableRNGs
 using Statistics
 using Rmath
 
@@ -15,7 +17,7 @@ include("associate.jl")    # stature association: does a known stature fit
 
 export BoneTable, ReferenceGroup
 export EstimationSample, AssociationSample, estimation_sample, association_sample
-export LineFit, fit_line, prediction, bootstrap_prediction
+export LineFit, fit_line, prediction, bootstrap_prediction, bootstrap_seed
 export Model, Estimate, Association, estimate, associate, model_plot, association_plot
 export available_measurements, BOOTSTRAP_BELOW, BOOTSTRAP_DRAWS, MIN_REFERENCE
 

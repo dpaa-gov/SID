@@ -2,7 +2,7 @@
 
 julia_version = "1.13.1"
 manifest_format = "2.1"
-project_hash = "0500b2849fcc8a94bf7f84e4aba7df380cda1f3a"
+project_hash = "415bf8395928386515a673600ca0b0cff5d37bfe"
 
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
@@ -75,10 +75,17 @@ uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 version = "1.0.0"
 
 [[deps.SIDJ]]
-deps = ["Random", "Rmath", "Statistics"]
+deps = ["Random", "Rmath", "SHA", "StableRNGs", "Statistics"]
 path = "."
 uuid = "5e1edfc5-7e50-4b8f-8b66-ec1035c3c6fc"
 version = "1.0.0"
+
+[[deps.StableRNGs]]
+deps = ["Random"]
+git-tree-sha1 = "4f96c596b8c8258cc7d3b19797854d368f243ddc"
+registries = "General"
+uuid = "860ef19b-820b-49d6-a774-d7a799459cd3"
+version = "1.0.4"
 
 [[deps.Statistics]]
 deps = ["LinearAlgebra"]
