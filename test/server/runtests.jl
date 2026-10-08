@@ -112,6 +112,39 @@ end
     end
 end
 
+# A request refused for its size leaves nothing behind it. It still arrives,
+# and each connection used to keep room for what it had been sent faster
+# than it was read, until a minute or two after it had closed.
+@testset "a refused request leaves nothing behind" begin
+    config = SS.Config("", 5432, "", "", "", 3838, 30, joinpath(SS.REPO_ROOT, "web"), joinpath(pkgdir(SS), "config"), "test")
+    state = SS.AppState(config)
+    @atomic state.last_attempt = SS.now(SS.UTC) # so nothing tries to reach ARDS
+    server = SS.listen(SS.handler(state), "127.0.0.1", 8776)
+    large = "{\"pad\": \"" * "x"^(11 * 1024^2) * "\"}"
+    function send()
+        socket = HTTP.Sockets.connect("127.0.0.1", 8776)
+        write(socket, "POST /api/estimate HTTP/1.1\r\nHost: x\r\nContent-Length: $(sizeof(large))\r\n\r\n")
+        write(socket, large)
+        answer = String(readavailable(socket))
+        close(socket)
+        return answer
+    end
+    # what Julia counts as in use once everything unused has been cleared out
+    in_use() = (sleep(1); GC.gc(); GC.gc(); Base.gc_live_bytes() / 1024^2)
+    try
+        @test SS.UNREAD_BYTES == 16 * 1024
+        @test startswith(send(), "HTTP/1.1 413") # once first, so that what compiling takes is not counted
+        before = in_use()
+        answers = fetch.([@async send() for _ in 1:20])
+        @test all(startswith("HTTP/1.1 413"), answers)
+        after = in_use()
+        @info "In use around twenty refused requests of 11 MB at once" before after
+        @test after - before < 50
+    finally
+        close(server)
+    end
+end
+
 # A fit to reference values that do not vary has no slope: its plot is sent with nulls, not refused as an error
 @testset "plots without numbers" begin
     sample = EstimationSample(["fem_01"], fill(170.0, 12), reshape(Union{Missing, Float64}[450.0 for _ in 1:12], 12, 1), fill(1, 12))

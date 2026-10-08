@@ -218,10 +218,19 @@ const MAX_CONNECTIONS = 10_000
 # within one to three minutes.
 const IDLE_SECONDS = 60
 
+# The most a connection holds of what has been sent to it and not yet read.
+# Julia would take in 10 MB, and keeps room that size once it has: a request
+# refused for its size still arrived, and left 8.5 MB behind it, held with
+# its connection for a minute or two after that had closed, until the timer
+# that closes silent connections next looked. Sixty of 12 MB left 500 MiB. A
+# sender with more than this to send waits for it to be read.
+const UNREAD_BYTES = 16 * 1024
+
 # Listens with the limits above. HTTP.jl's own log messages are turned off:
 # it would otherwise write a warning for every idle connection it closes.
 listen(handle, host, port; max_connections = MAX_CONNECTIONS, idle_seconds = IDLE_SECONDS) =
-    HTTP.serve!(limited(handle), host, port; stream = true, max_connections, readtimeout = idle_seconds, verbose = -1)
+    HTTP.serve!(limited(handle), host, port; stream = true, max_connections, readtimeout = idle_seconds, verbose = -1,
+        tcpisvalid = socket -> (socket.throttle = UNREAD_BYTES; true))
 
 # Starts listening straight away; the first reference load runs in the
 # background so the health check answers while the database is slow or down.
