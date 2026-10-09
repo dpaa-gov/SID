@@ -48,8 +48,9 @@ function ensure_fresh!(state::AppState)
     return
 end
 
-# Requests are all handled on one thread. Anything slow runs on a worker
-# thread instead, so the server keeps answering other requests meanwhile.
+# Requests are handled on the interactive thread, which HTTP.jl keeps to
+# itself. Anything slow runs on a worker thread instead, so the server keeps
+# answering other requests meanwhile.
 function off_thread(work)
     task = Threads.@spawn work()
     try
@@ -127,110 +128,33 @@ function handler(state::AppState)
     end
 end
 
-# --- Reading a request, within a size limit ---
+# --- Limits ---
 
-# HTTP.jl's own way of handing a handler its request reads the whole body
-# first, whatever its size, so a request of a gigabyte or two would fill the
-# pod's memory before any check could refuse it. Requests are read here
-# instead, and no more of one is kept than its route allows.
-# How much of a refused request is read and thrown away so that its sender
-# gets the answer; one larger than this is refused and the connection closed.
-const DISCARD_BYTES = 32 * 1024^2
-
+# HTTP.jl reads each request before the app is given it, and keeps to the
+# limits it is started with here. A request larger than MAX_BODY_BYTES is
+# refused, with 413 and no message: by the size it declares, without any of
+# it being read, or, where it declares none, as soon as more has arrived.
 # Every request to SID is small: a few typed measurements.
-body_limit(target) = MAX_BODY_BYTES
-
-# Reads a request's body up to `limit`. Returns nothing when it is larger:
-# by the size it declares, without reading it, or, where it declares none,
-# as soon as more than the limit has arrived.
-function read_body(stream, limit)
-    declared = tryparse(Int, HTTP.header(stream.message, "Content-Length"))
-    declared !== nothing && declared > limit && return nothing
-    body = UInt8[]
-    while !eof(stream)
-        append!(body, readavailable(stream))
-        length(body) > limit && return nothing
-    end
-    return body
-end
-
-# Reads on, keeping nothing, until the request ends or `most` bytes have
-# gone. Returns whether the whole request has now been read.
-function discard(stream, most)
-    declared = tryparse(Int, HTTP.header(stream.message, "Content-Length"))
-    declared !== nothing && declared > most && return false
-    gone = 0
-    while !eof(stream)
-        gone += length(readavailable(stream))
-        gone > most && return false
-    end
-    return true
-end
-
-# What the server runs for each request: `handle` is given the request once
-# its body has been read within the limit.
-function limited(handle)
-    return function (stream::HTTP.Stream)
-        request::HTTP.Request = stream.message
-        limit = body_limit(request.target)
-        body = read_body(stream, limit)
-        finished = true
-        if body === nothing
-            @warn "Request refused: larger than its limit" target = request.target limit declared = HTTP.header(request, "Content-Length", "not given")
-            response = error_response(413, REQUEST_TOO_LARGE)
-            HTTP.setheader(response, "Connection" => "close")
-            finished = discard(stream, DISCARD_BYTES)
-        else
-            request.body = body
-            response = handle(request)
-        end
-        request.response = response
-        response.request = request
-        HTTP.startwrite(stream)
-        write(stream, response.body)
-        if !finished
-            # The rest of the request is not going to be read: the answer is
-            # completed and the connection dropped. HTTP.jl is told the
-            # connection went away, which it takes quietly; leaving it to find
-            # a request half read would be logged as a failure of the handler.
-            HTTP.closewrite(stream)
-            close(stream)
-            throw(Base.IOError("request larger than its limit; connection closed", Base.UV_ECONNABORTED))
-        end
-        return
-    end
-end
-
-# --- Connections ---
-
-# The most connections held at once; more wait their turn. Each costs about
-# 33 KB, so this bounds what any number of them can take, at about 330 MB:
-# what is left of the pod's 2 GiB beside OsteoSort's largest batch (1.5 GB),
-# and the same here. A lower limit is easier to fill with silent connections,
-# which keeps everyone else out, the health check included, until they are
-# closed: 1,000 was, by 3,000 of them, for up to three minutes.
-const MAX_CONNECTIONS = 10_000
-# A connection that has sent nothing for this long is closed, so that ones
-# left open and silent do not keep the places. HTTP.jl counts the time from
-# the last data received, including while an answer is being worked out, so
-# this must stay above the longest any answer takes: Atlas allows 30 seconds.
-# It looks every one to two times this long, so a silent connection goes
-# within one to three minutes.
+#
+# A connection is closed when it is too slow at any stage, so that ones left
+# open and silent hold nothing for long.
+# How long a request's headers may take to arrive, from a new connection or
+# once the first of them has come on one kept open
+const HEADER_SECONDS = 10
+# How long its body may then take
+const BODY_SECONDS = 30
+# How long a connection is kept open between requests
 const IDLE_SECONDS = 60
+# How long the client may take over an answer. None of these counts the time
+# an answer takes to work out, for which Atlas allows 30 seconds.
+const WRITE_SECONDS = 30
 
-# The most a connection holds of what has been sent to it and not yet read.
-# Julia would take in 10 MB, and keeps room that size once it has: a request
-# refused for its size still arrived, and left 8.5 MB behind it, held with
-# its connection for a minute or two after that had closed, until the timer
-# that closes silent connections next looked. Sixty of 12 MB left 500 MiB. A
-# sender with more than this to send waits for it to be read.
-const UNREAD_BYTES = 16 * 1024
-
-# Listens with the limits above. HTTP.jl's own log messages are turned off:
-# it would otherwise write a warning for every idle connection it closes.
-listen(handle, host, port; max_connections = MAX_CONNECTIONS, idle_seconds = IDLE_SECONDS) =
-    HTTP.serve!(limited(handle), host, port; stream = true, max_connections, readtimeout = idle_seconds, verbose = -1,
-        tcpisvalid = socket -> (socket.throttle = UNREAD_BYTES; true))
+# Nothing here limits how many connections are held at once: HTTP.jl has no
+# setting for it. Each costs about 30 KB until it is closed for its silence,
+# and on Atlas none reaches the pod except through the gateway.
+listen(handle, host, port; header_seconds = HEADER_SECONDS, body_seconds = BODY_SECONDS, idle_seconds = IDLE_SECONDS, write_seconds = WRITE_SECONDS) =
+    HTTP.serve!(handle, host, port; max_body_bytes = MAX_BODY_BYTES, read_header_timeout = header_seconds,
+        read_timeout = body_seconds, idle_timeout = idle_seconds, write_timeout = write_seconds)
 
 # Starts listening straight away; the first reference load runs in the
 # background so the health check answers while the database is slow or down.

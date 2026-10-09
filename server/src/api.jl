@@ -13,7 +13,7 @@ cannot_analyse(message) = throw(RequestError(422, message))
 function read_json(req::HTTP.Request)
     length(req.body) <= MAX_BODY_BYTES || throw(RequestError(413, REQUEST_TOO_LARGE))
     body = try
-        JSON.parse(req.body)
+        JSON.parse(copy(req.body)) # the request's bytes, in whichever form HTTP.jl holds them
     catch
         bad_request("The request body is not valid JSON")
     end

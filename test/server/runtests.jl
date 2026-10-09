@@ -1,11 +1,40 @@
 using Test
 using HTTP
 using JSON
+using Sockets
 using SIDServer
 using SIDJ
 const SS = SIDServer
 
 const HAVE_DB = !isempty(get(ENV, "DB_NAME", ""))
+
+# The status in an answer as it came off a connection, or nothing if there was none
+status_of(answer) = (m = match(r"^HTTP/1\.1 (\d{3})", answer); m === nothing ? nothing : parse(Int, m[1]))
+
+# Writes a request by hand, for what a client will not send, and returns the
+# status it was answered with, or nothing if no answer came in time. The
+# server may answer and close before all of it has been sent.
+function raw(port, text; seconds = 10)
+    socket = Sockets.connect("127.0.0.1", port)
+    # read as far as the status: a connection that is being kept open is not waited on
+    answer = @async begin
+        got = ""
+        try
+            while status_of(got) === nothing && !eof(socket)
+                got *= String(readavailable(socket))
+            end
+        catch
+        end
+        got
+    end
+    try
+        write(socket, text)
+    catch
+    end
+    done = timedwait(() -> istaskdone(answer), seconds) == :ok
+    close(socket)
+    return done ? status_of(fetch(answer)) : nothing
+end
 
 @testset "config" begin
     @test SS.conninfo_value("a'b\\c") == "'a\\'b\\\\c'"
@@ -34,21 +63,11 @@ end
     @atomic state.last_attempt = SS.now(SS.UTC) # so nothing tries to reach ARDS
     inner = SS.handler(state)
     largest = Ref(0) # the largest body the app itself was handed
-    server = HTTP.serve!(SS.limited(req -> (largest[] = max(largest[], length(req.body)); inner(req))), "127.0.0.1", 8772; stream = true)
+    server = SS.listen(req -> (req.method == "POST" && (largest[] = max(largest[], length(req.body))); inner(req)), "127.0.0.1", 8772)
     url = "http://127.0.0.1:8772"
     post(path, body) = HTTP.post(url * path, ["Content-Type" => "application/json"], body; status_exception = false, retry = false)
-    message(response) = JSON.parse(response.body).error
-    # a request written by hand, for what the client above will not send; the answer, or nothing if none came in time
-    function raw(text; seconds = 10)
-        socket = HTTP.Sockets.connect("127.0.0.1", 8772)
-        write(socket, text)
-        answer = @async String(read(socket))
-        done = timedwait(() -> istaskdone(answer), seconds) == :ok
-        close(socket)
-        return done ? fetch(answer) : nothing
-    end
     try
-        @test SS.body_limit("/api/estimate") == SS.MAX_BODY_BYTES == 64 * 1024
+        @test SS.MAX_BODY_BYTES == 64 * 1024
         # small requests reach the app as before
         small = "{\"references\": []}"
         ordinary = post("/api/estimate", small)
@@ -60,17 +79,16 @@ end
         # over it: refused, and never handed to the app, on every route
         largest[] = 0
         for path in ("/api/estimate", "/api/estimate/plot", "/api/associate")
-            over = post(path, "{\"pad\": \"" * "x"^100_000 * "\"}")
-            @test over.status == 413 && message(over) == SS.REQUEST_TOO_LARGE
+            @test raw(8772, "POST $path HTTP/1.1\r\nHost: x\r\nContent-Length: 100000\r\n\r\n" * "x"^100_000) == 413
         end
         @test largest[] == 0
         # a request that says it is 2 GB is refused on its word: nothing of it is waited for or read
-        seconds = @elapsed answer = raw("POST /api/estimate HTTP/1.1\r\nHost: x\r\nContent-Length: 2000000000\r\n\r\n{\"pad\": \"")
-        @test answer !== nothing && startswith(answer, "HTTP/1.1 413") && seconds < 5 && largest[] == 0
+        seconds = @elapsed status = raw(8772, "POST /api/estimate HTTP/1.1\r\nHost: x\r\nContent-Length: 2000000000\r\n\r\n{\"pad\": \"")
+        @test status == 413 && seconds < 5 && largest[] == 0
         # one that does not say how large it is is cut off once it has gone over
         chunk = string(16384; base = 16) * "\r\n" * "x"^16384 * "\r\n"
-        answer = raw("POST /api/associate HTTP/1.1\r\nHost: x\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n" * chunk^8 * "0\r\n\r\n")
-        @test answer !== nothing && startswith(answer, "HTTP/1.1 413") && largest[] == 0
+        @test raw(8772, "POST /api/associate HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n" * chunk^8 * "0\r\n\r\n") == 413
+        @test largest[] == 0
         # and the server is still answering afterwards
         @test HTTP.get(url * "/healthz").status == 200
     finally
@@ -78,65 +96,76 @@ end
     end
 end
 
-# Connections that are opened and left silent must not keep others out: only
-# so many are held at once, and one that sends nothing is closed.
-@testset "connections are limited, and silent ones closed" begin
+# A connection that is too slow at any stage is closed, so that ones opened
+# and left silent hold nothing for long and keep nobody else out. The time an
+# answer takes to work out is not counted against it.
+@testset "slow and silent connections are closed" begin
     config = SS.Config("", 5432, "", "", "", 3838, 30, joinpath(SS.REPO_ROOT, "web"), joinpath(pkgdir(SS), "config"), "test")
     state = SS.AppState(config)
     @atomic state.last_attempt = SS.now(SS.UTC) # so nothing tries to reach ARDS
-    @test SS.MAX_CONNECTIONS == 10_000 && SS.IDLE_SECONDS == 60 # above the 30 seconds Atlas allows an answer
-    # a server that holds two connections and closes one silent for a second
-    server = SS.listen(SS.handler(state), "127.0.0.1", 8774; max_connections = 2, idle_seconds = 1)
-    health = "GET /healthz HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"
-    function answer_to(socket; seconds = 15)
-        answer = @async String(read(socket))
-        return timedwait(() -> istaskdone(answer), seconds) == :ok ? fetch(answer) : nothing
+    @test (SS.HEADER_SECONDS, SS.BODY_SECONDS, SS.IDLE_SECONDS, SS.WRITE_SECONDS) == (10, 30, 60, 30)
+    inner = SS.handler(state)
+    # a server that allows a second for headers, two for a body and three between requests
+    server = SS.listen(req -> (req.target == "/healthz?slow" && sleep(4); inner(req)), "127.0.0.1", 8774;
+        header_seconds = 1, body_seconds = 2, idle_seconds = 3, write_seconds = 2)
+    health = "GET /healthz HTTP/1.1\r\nHost: x\r\n\r\n"
+    # how long a connection lasted once `sent` had been written to it, and the status it was told, if any
+    function lasted(sent)
+        socket = Sockets.connect("127.0.0.1", 8774)
+        isempty(sent) || write(socket, sent)
+        answer = @async try String(read(socket)) catch; "" end
+        seconds = @elapsed closed = timedwait(() -> istaskdone(answer), 20) == :ok
+        close(socket)
+        return closed ? (seconds, status_of(fetch(answer))) : (Inf, nothing)
     end
-    ask() = (socket = HTTP.Sockets.connect("127.0.0.1", 8774); write(socket, health); answer_to(socket))
+    within(seconds, low, high) = low <= seconds <= high
     try
-        @test startswith(ask(), "HTTP/1.1 200")
-        # two connections that send nothing take both places
-        silent = [HTTP.Sockets.connect("127.0.0.1", 8774) for _ in 1:2]
-        sleep(0.3)
-        # a request arriving now has to wait, and is answered once a silent one has been closed
-        waited = @elapsed answer = ask()
-        @test answer !== nothing && startswith(answer, "HTTP/1.1 200")
-        @test 0.5 < waited < 10
-        # the silent ones were told so and closed
-        closed = [answer_to(socket; seconds = 10) for socket in silent]
-        @test all(text -> text !== nothing && startswith(text, "HTTP/1.1 408"), closed)
+        # sends nothing at all
+        seconds, status = lasted("")
+        @test within(seconds, 0.8, 4) && status == 408
+        # stops part way through its headers
+        seconds, status = lasted("GET /healthz HTTP/1.1\r\nHost: x\r\n")
+        @test within(seconds, 0.8, 4) && status == 408
+        # stops part way through its body
+        seconds, status = lasted("POST /api/estimate HTTP/1.1\r\nHost: x\r\nContent-Length: 100\r\n\r\n" * "x"^50)
+        @test within(seconds, 1.8, 6) && status == 408
+        # is answered, and then kept open with nothing more asked
+        seconds, status = lasted(health)
+        @test within(seconds, 2.8, 8) && status == 200
+        # an answer that takes longer to work out than any of these is still given
+        seconds, status = lasted("GET /healthz?slow HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
+        @test seconds >= 4 && status == 200
+        # many left silent keep nobody out, and are all closed
+        silent = [Sockets.connect("127.0.0.1", 8774) for _ in 1:300]
+        waited = @elapsed status = raw(8774, health)
+        @test status == 200 && waited < 2
+        gone = [@async try read(socket); true catch; true end for socket in silent]
+        @test timedwait(() -> all(istaskdone, gone), 15) == :ok
+        foreach(close, silent)
         # and the server carries on
-        @test startswith(ask(), "HTTP/1.1 200")
+        @test raw(8774, health) == 200
     finally
         close(server)
     end
 end
 
-# A request refused for its size leaves nothing behind it. It still arrives,
-# and each connection used to keep room for what it had been sent faster
-# than it was read, until a minute or two after it had closed.
+# A request refused for its size leaves nothing behind it. With HTTP.jl 1 it
+# still arrived, and each connection kept room for what it had been sent
+# faster than it was read, until a minute or two after it had closed: the
+# twenty here left 309 MiB.
 @testset "a refused request leaves nothing behind" begin
     config = SS.Config("", 5432, "", "", "", 3838, 30, joinpath(SS.REPO_ROOT, "web"), joinpath(pkgdir(SS), "config"), "test")
     state = SS.AppState(config)
     @atomic state.last_attempt = SS.now(SS.UTC) # so nothing tries to reach ARDS
     server = SS.listen(SS.handler(state), "127.0.0.1", 8776)
-    large = "{\"pad\": \"" * "x"^(11 * 1024^2) * "\"}"
-    function send()
-        socket = HTTP.Sockets.connect("127.0.0.1", 8776)
-        write(socket, "POST /api/estimate HTTP/1.1\r\nHost: x\r\nContent-Length: $(sizeof(large))\r\n\r\n")
-        write(socket, large)
-        answer = String(readavailable(socket))
-        close(socket)
-        return answer
-    end
+    large = "POST /api/estimate HTTP/1.1\r\nHost: x\r\nContent-Length: $(11 * 1024^2 + 11)\r\n\r\n{\"pad\": \"" * "x"^(11 * 1024^2) * "\"}"
     # what Julia counts as in use once everything unused has been cleared out
     in_use() = (sleep(1); GC.gc(); GC.gc(); Base.gc_live_bytes() / 1024^2)
     try
-        @test SS.UNREAD_BYTES == 16 * 1024
-        @test startswith(send(), "HTTP/1.1 413") # once first, so that what compiling takes is not counted
+        @test raw(8776, large) == 413 # once first, so that what compiling takes is not counted
         before = in_use()
-        answers = fetch.([@async send() for _ in 1:20])
-        @test all(startswith("HTTP/1.1 413"), answers)
+        answers = fetch.([@async raw(8776, large) for _ in 1:20])
+        @test all(==(413), answers)
         after = in_use()
         @info "In use around twenty refused requests of 11 MB at once" before after
         @test after - before < 50
