@@ -43,11 +43,16 @@ After each of stages 1 to 4, run the ordinary checks and the checker below, and 
 |---|---|---|
 | SID as it was | | 147 |
 | 1. Thin PostgreSQL client | done 2026-10-09 | 33 |
-| 2 to 6 | not started | |
+| 2. Plain router | done 2026-10-13 | 73 |
+| 3 to 6 | not started | |
 
 Stage 1: `server/src/pg.jl` is the client, and `server/src/reference.jl` reads each column as the type it is known to be. LibPQ and Tables are gone from the server's dependencies, which took its packages from 86 to 40. On the ordinary build the server suite, the R parity check (the same 2 one-rounding-step differences in 347,254 numbers) and the browser suite pass.
 
-What the 33 are: 14 in HTTP.jl's router, about 15 reached through `server/src/http.jl` and `server/src/meta.jl`, 1 through `server/src/config.jl`, and a few in Base.
+Stage 2: `route` in `server/src/http.jl` tells the five routes apart by name. Before the change, what the old router answered was recorded for 174 requests (six methods, 29 paths: closing and doubled slashes, query strings, wrong case, paths under `/api` that are not routes, files and paths outside the web folder); the new routing gives the same answer to every one. A test of the routing was added to the server suite. On the ordinary build the server suite, the parity check and the browser suite pass.
+
+The count rose from 33 to 73, as expected: nothing in HTTP.jl is objected to any more, and the checker can now see the analysis handlers. Of the 73, 55 are in the server's own code, nearly all in `server/src/api.jl` (the handlers for estimation, the plot and association), with a few in `server/src/meta.jl`, `server/src/http.jl` and `server/src/config.jl`; 18 are in Base.
+
+What the 33 after stage 1 were: 14 in HTTP.jl's router, about 15 reached through `server/src/http.jl` and `server/src/meta.jl`, 1 through `server/src/config.jl`, and a few in Base.
 
 Of the first 147: about 110 came through loading reference data (`server/src/reference.jl`), mostly LibPQ and the logging framework it brings; 14 are in HTTP.jl's router; about 15 are in `server/src/http.jl` and `server/src/meta.jl`. The checker cannot see past a call it cannot resolve, and the router is one, so the analysis handlers behind it have not been checked yet. Expect the count to rise again once stage 2 is done.
 

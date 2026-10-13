@@ -104,22 +104,35 @@ function static_handler(state::AppState, req::HTTP.Request)
     return HTTP.Response(200, headers, read(file))
 end
 
-function router(state::AppState)
-    r = HTTP.Router(req -> static_handler(state, req))
-    HTTP.register!(r, "GET", "/healthz", _ -> HTTP.Response(200, ["Content-Type" => "text/plain"], "ok"))
-    HTTP.register!(r, "GET", "/api/meta", _ -> meta_handler(state))
-    HTTP.register!(r, "POST", "/api/estimate", req -> estimate_handler(state, req))
-    HTTP.register!(r, "POST", "/api/estimate/plot", req -> estimate_plot_handler(state, req))
-    HTTP.register!(r, "POST", "/api/associate", req -> associate_handler(state, req))
-    HTTP.register!(r, "/api/**", _ -> error_response(404, "Not found"))
-    return r
+# Which part of the app a request is for. The routes are few and fixed, so
+# they are told apart here by name; a table of routes looked up as each
+# request arrives is something a trimmed build cannot follow.
+#
+# A path is taken a part at a time, so a doubled or closing slash makes no
+# difference, and what follows a question mark is not part of it.
+function route(state::AppState, req::HTTP.Request)::HTTP.Response
+    parts = filter(!isempty, split(first(split(req.target, '?'; limit = 2)), "/"))
+    is(names::String...) = length(parts) == length(names) && all(i -> parts[i] == names[i], eachindex(names))
+    if is("healthz")
+        req.method == "GET" || return HTTP.Response(405)
+        return HTTP.Response(200, ["Content-Type" => "text/plain"], "ok")
+    elseif length(parts) > 1 && parts[1] == "api"
+        if req.method == "GET"
+            is("api", "meta") && return meta_handler(state)
+        elseif req.method == "POST"
+            is("api", "estimate") && return estimate_handler(state, req)
+            is("api", "estimate", "plot") && return estimate_plot_handler(state, req)
+            is("api", "associate") && return associate_handler(state, req)
+        end
+        return error_response(404, "Not found")
+    end
+    return static_handler(state, req)
 end
 
 function handler(state::AppState)
-    route = router(state)
     return function (req::HTTP.Request)
         try
-            return route(req)
+            return route(state, req)
         catch e
             e isa RequestError && return error_response(e.status, e.message)
             @error "Request failed" method = req.method target = req.target exception = (e, catch_backtrace())

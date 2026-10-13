@@ -55,6 +55,32 @@ end
 end
 
 # Rounding as the R SID rounded: the PI from the rounded bounds
+# Each request reaches the part of the app it is for, by its method and its
+# path. With no reference data loaded, an analysis route answers 503, which
+# tells it apart from the 404 of a path that is not one.
+@testset "requests reach the right part of the app" begin
+    config = SS.Config("", 5432, "", "", "", 3838, 30, joinpath(SS.REPO_ROOT, "web"), joinpath(pkgdir(SS), "config"), "test")
+    state = SS.AppState(config)
+    @atomic state.last_attempt = SS.now(SS.UTC) # so nothing tries to reach ARDS
+    respond = SS.handler(state)
+    status(method, target) = respond(HTTP.Request(method, target, ["Content-Type" => "application/json"], Vector{UInt8}(method == "POST" ? "{}" : ""))).status
+    @test status("GET", "/healthz") == 200 && status("POST", "/healthz") == 405
+    @test status("GET", "/api/meta") == 503 && status("POST", "/api/meta") == 404
+    for path in ("/api/estimate", "/api/estimate/plot", "/api/associate")
+        @test status("POST", path) == 503 && status("GET", path) == 404 && status("PUT", path) == 404
+    end
+    # a closing or doubled slash, and what follows a question mark, make no difference
+    @test status("GET", "/healthz/") == 200 && status("GET", "/healthz?x=1") == 200
+    @test status("POST", "/api/estimate/") == 503 && status("POST", "/api//estimate?x=1") == 503 && status("GET", "//api/meta") == 503
+    # anything else under /api is not found, whatever the method; names are matched exactly
+    @test status("GET", "/api/nope") == 404 && status("POST", "/api/estimate/plot/x") == 404 && status("DELETE", "/api/meta") == 404
+    @test status("GET", "/API/meta") == 404 && status("GET", "/api/meta%2F") == 404 && status("GET", "/Healthz") == 404
+    # everything else is the page and its files, which are only read
+    @test status("GET", "/") == 200 && status("HEAD", "/js/app.js") == 200 && status("GET", "/nope.html") == 404
+    @test status("POST", "/") == 405 && status("POST", "/api") == 405 && status("GET", "/api") == 404
+    @test status("GET", "/../server/Project.toml") == 404 && status("GET", "/.env") == 404
+end
+
 # No more of a request is read than the 64 KB any request to SID may be: one of
 # a gigabyte or two would otherwise be held in memory before anything could refuse it.
 @testset "a request is read only as far as its limit" begin
