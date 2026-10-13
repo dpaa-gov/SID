@@ -63,7 +63,7 @@ end
     @atomic state.last_attempt = SS.now(SS.UTC) # so nothing tries to reach ARDS
     inner = SS.handler(state)
     largest = Ref(0) # the largest body the app itself was handed
-    server = SS.listen(req -> (req.method == "POST" && (largest[] = max(largest[], length(req.body))); inner(req)), "127.0.0.1", 8772)
+    server = SS.listen(req -> (largest[] = max(largest[], length(SS.request_bytes(req))); inner(req)), "127.0.0.1", 8772)
     url = "http://127.0.0.1:8772"
     post(path, body) = HTTP.post(url * path, ["Content-Type" => "application/json"], body; status_exception = false, retry = false)
     try
@@ -73,6 +73,11 @@ end
         ordinary = post("/api/estimate", small)
         @test ordinary.status in (400, 503) && largest[] == sizeof(small)
         @test HTTP.get(url * "/healthz").status == 200
+        # one with no body at all is a bad request, as an empty one is: not a failure of the server
+        for path in ("/api/estimate", "/api/estimate/plot", "/api/associate")
+            nothing_sent = HTTP.post(url * path, ["Content-Type" => "application/json"], ""; status_exception = false, retry = false)
+            @test nothing_sent.status == 400 && JSON.parse(nothing_sent.body).error == "The request body is not valid JSON"
+        end
         # a request up to the limit is still handed over
         fits = post("/api/estimate", "{\"pad\": \"" * "x"^60_000 * "\"}")
         @test fits.status != 413 && largest[] > 60_000

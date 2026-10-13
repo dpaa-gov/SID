@@ -10,10 +10,22 @@ const ANALYSIS_FAILED = "The analysis failed for this input and reference data"
 bad_request(message) = throw(RequestError(400, message))
 cannot_analyse(message) = throw(RequestError(422, message))
 
+# A request's bytes, in whichever form HTTP.jl holds them. One sent with no
+# body at all comes as a thing of its own, which is not an empty body and
+# cannot be read as one: it is as good as empty here.
+function request_bytes(req::HTTP.Request)::Vector{UInt8}
+    body = req.body
+    body isa HTTP.BytesBody{Vector{UInt8}} && return copy(body)
+    body isa Vector{UInt8} && return body
+    body isa HTTP.EmptyBody && return UInt8[]
+    return Vector{UInt8}(copy(body))
+end
+
 function read_json(req::HTTP.Request)
-    length(req.body) <= MAX_BODY_BYTES || throw(RequestError(413, REQUEST_TOO_LARGE))
+    bytes = request_bytes(req)
+    length(bytes) <= MAX_BODY_BYTES || throw(RequestError(413, REQUEST_TOO_LARGE))
     body = try
-        JSON.parse(copy(req.body)) # the request's bytes, in whichever form HTTP.jl holds them
+        JSON.parse(bytes)
     catch
         bad_request("The request body is not valid JSON")
     end
