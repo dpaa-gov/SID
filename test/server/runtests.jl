@@ -64,6 +64,7 @@ end
     @test SS.describe(ErrorException("Missing required database environment variables: DB_NAME")) == "Missing required database environment variables: DB_NAME"
     @test SS.describe(ArgumentError("bad")) == "ArgumentError: bad"
     @test SS.describe(BoundsError([1], 2)) == "BoundsError" && SS.describe(KeyError(:a)) == "KeyError"
+    @test (try read("/no/such/file") catch e; SS.describe(e) end) == "SystemError: opening file \"/no/such/file\""
     failed = Threads.@spawn error("inside")
     @test (try fetch(failed) catch e; SS.describe(e) end) == "a task failed: inside"
 end

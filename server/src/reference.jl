@@ -119,7 +119,7 @@ function load_reference(conn::PG.Connection)
             # A bone ARDS lists but has no table or column for is left out. Any
             # other failure fails the load, so the previous snapshot is kept.
             e isa PG.Error && (PG.undefined_table(e) || PG.undefined_column(e)) || rethrow()
-            @warn "Could not load reference data" bone exception = e
+            complain("Could not load reference data for " * bone * ": " * describe(e))
             continue
         end
         row_collection = PG.strings(rows, "collection")

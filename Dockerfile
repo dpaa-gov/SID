@@ -5,7 +5,7 @@
 FROM debian:bookworm-slim AS bundle
 
 # Bump with each release
-ARG SID_VERSION=v1.0.0-alpha.3
+ARG SID_VERSION=v1.0.0-trim.1
 # Or a local path, to try a bundle built on this machine
 ARG BUNDLE=https://github.com/dpaa-gov/SID/releases/download/${SID_VERSION}/sid-linux-x86_64.tar.gz
 

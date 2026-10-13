@@ -225,7 +225,7 @@ function analysis(::Type{T}, work::F)::T where {T, F}
         return off_thread(T, work)
     catch e
         e isa RequestError && rethrow()
-        @error "Analysis failed" exception = (e, catch_backtrace())
+        complain("Analysis failed: " * describe(e))
         throw(RequestError(422, ANALYSIS_FAILED))
     end
 end

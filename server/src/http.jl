@@ -6,6 +6,12 @@ struct RequestError <: Exception
     message::String
 end
 
+# What the app says of itself goes out as plain lines: what is going on to
+# standard output, what has gone wrong to standard error. Julia's own log
+# messages are not used, because in a trimmed program they print nothing.
+say(line::String) = (println(Core.stdout, line); nothing)
+complain(line::String) = (println(Core.stderr, line); nothing)
+
 # An error in words, for the log. The kinds this app raises itself are given
 # with what they say; any other is named by its kind, which is as much as a
 # trimmed build can tell of an error it was not told to expect.
@@ -19,6 +25,8 @@ function describe(@nospecialize(e))::String
     elseif e isa ArgumentError
         said = e.msg
         return said isa String ? kind * ": " * said : kind
+    elseif e isa SystemError
+        return kind * ": " * e.prefix # what was being done, such as opening a named file
     elseif e isa TaskFailedException
         return "a task failed: " * describe(e.task.exception)
     end
@@ -44,11 +52,11 @@ function refresh_reference!(state::AppState)
         @atomic state.snapshot = snapshot
         @atomic state.meta_json = meta_json
         @atomic state.load_error = ""
-        @info "Reference data loaded" groups = length(snapshot.groups) bones = length(snapshot.bones)
+        say("Reference data loaded: " * string(length(snapshot.groups)) * " groups, " * string(length(snapshot.bones)) * " bones")
         return true
     catch e
         @atomic state.load_error = describe(e)
-        @error "Reference data load failed" exception = (e, catch_backtrace())
+        complain("Reference data load failed: " * describe(e))
         return false
     end
 end
@@ -102,7 +110,7 @@ function meta_handler(state::AppState)
     meta_json = @atomic state.meta_json
     if isempty(meta_json)
         load_error = @atomic state.load_error
-        @error "Reference data unavailable" load_error
+        complain("Reference data unavailable: " * load_error)
         return error_response(503, "Reference data could not be loaded from ARDS")
     end
     return json_response(200, meta_json)
@@ -167,7 +175,7 @@ function handler(state::AppState)
             return route(state, req)
         catch e
             e isa RequestError && return error_response(e.status, e.message)
-            @error "Request failed" method = req.method target = req.target exception = (e, catch_backtrace())
+            complain("Request failed: " * String(req.method) * " " * String(req.target) * ": " * describe(e))
             return error_response(500, "Internal server error")
         end
     end
@@ -203,18 +211,18 @@ listen(handle, host, port; header_seconds = HEADER_SECONDS, body_seconds = BODY_
 
 # Starts listening straight away; the first reference load runs in the
 # background so the health check answers while the database is slow or down.
-function serve(config::Config; host = "0.0.0.0", port = config.port)
+function serve(config::Config; host::String = "0.0.0.0", port::Int = config.port)
     state = AppState(config)
     Threads.@spawn begin
         try
             ensure_fresh!(state)
         catch e
-            @error "The first load of reference data failed" error = describe(e)
+            complain("The first load of reference data failed: " * describe(e))
         end
         nothing
     end
     server = listen(handler(state), host, port)
-    @info "SID listening" host port version = config.version
+    say("SID listening on " * host * ":" * string(port) * ", version " * config.version)
     return server, state
 end
 
