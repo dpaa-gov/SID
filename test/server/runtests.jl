@@ -182,6 +182,16 @@ end
     @test occursin("null", JSON.json(plot))
 end
 
+# What JSON can hold where a number belongs: only a number is one
+@testset "typed-in numbers" begin
+    read_values(text) = SS.values_field(JSON.parse(text), :values)
+    @test read_values("""{"values": {"Fem_01": 450, "fem_02": null}}""") == Dict("fem_01" => 450.0)
+    for wrong in ("true", "false", "\"450\"", "0", "1e999")
+        @test_throws SS.RequestError(400, "Fem_01 must be a number above 0") read_values("""{"values": {"fem_01": $wrong}}""")
+    end
+    @test isnan(SS.plain_number(true)) && SS.plain_number(67) === 67.0
+end
+
 @testset "result rows" begin
     groups = [ReferenceGroup("B group", "B", "x", "y", Dict()), ReferenceGroup("A group", "A", "x", "y", Dict())]
     model = Model(["fem_01", "tib_01"], 820.0000000001, 66.516, 63.996, 69.03, 1113, 0.0482149, 26.98765, 0.73123, false, [1 => 13, 2 => 1100])
@@ -273,6 +283,7 @@ if HAVE_DB
         @test message("/api/estimate", merge(estimation, (interval = 0.8,)))[1] == 400
         @test message("/api/estimate", merge(estimation, (unit = "Feet",)))[1] == 400
         @test message("/api/estimate", merge(estimation, (values = (fem_01 = -4,),))) == (400, "Fem_01 must be a number above 0")
+        @test message("/api/estimate", merge(estimation, (values = (fem_01 = true,),))) == (400, "Fem_01 must be a number above 0")
         @test message("/api/estimate", merge(estimation, (values = (hum_02 = 300,),))) == (400, "Unknown measurement: Hum_02")
         # a measurement the selected groups have no data for is refused, not dropped
         missing_bone = findfirst(g -> !haskey(g.bones, "humerus"), snapshot.groups)
@@ -292,6 +303,7 @@ if HAVE_DB
                        known_stature = 67, values = (fem_01 = 450,))
         @test message("/api/associate", merge(association, (known_stature = nothing,))) == (422, "Enter a known stature")
         @test message("/api/associate", merge(association, (known_stature = 0,)))[1] == 400
+        @test message("/api/associate", merge(association, (known_stature = true,)))[1] == 400
         @test message("/api/associate", merge(association, (values = (fem_01 = nothing,),))) == (422, "Enter at least one measurement")
         @test message("/api/associate", merge(association, (values = (tib_01 = 370,),))) == (400, "Unknown measurement: Tib_01")
         @test message("/api/associate", merge(association, (element = "skull",)))[1] == 400

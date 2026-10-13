@@ -64,8 +64,9 @@ end
 
 # A number from a request as an ordinary one, or NaN for anything else. A
 # number too large for one arrives as a big number that is finite itself but
-# infinite once converted, so it is converted before it is checked.
-plain_number(value) = value isa Real ? Float64(value) : NaN
+# infinite once converted, so it is converted before it is checked. true and
+# false are numbers to Julia but not here.
+plain_number(value) = value isa Real && !(value isa Bool) ? Float64(value) : NaN
 
 # Typed-in measurements by code, blank ones left out
 function values_field(body, name)
