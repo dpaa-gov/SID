@@ -18,7 +18,10 @@ struct Error <: Exception
     sqlstate::String # PostgreSQL's five-character code: "42P01" no such table, "42703" no such column
 end
 
-Base.showerror(io::IO, e::Error) = print(io, "PostgreSQL: ", strip(e.message), isempty(e.sqlstate) ? "" : " (" * e.sqlstate * ")")
+# The error in words
+describe(e::Error)::String = "PostgreSQL: " * String(strip(e.message)) * (isempty(e.sqlstate) ? "" : " (" * e.sqlstate * ")")
+
+Base.showerror(io::IO, e::Error) = print(io, describe(e))
 
 undefined_table(e::Error) = e.sqlstate == "42P01"
 undefined_column(e::Error) = e.sqlstate == "42703"

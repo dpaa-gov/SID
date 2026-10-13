@@ -6,6 +6,25 @@ struct RequestError <: Exception
     message::String
 end
 
+# An error in words, for the log. The kinds this app raises itself are given
+# with what they say; any other is named by its kind, which is as much as a
+# trimmed build can tell of an error it was not told to expect.
+function describe(@nospecialize(e))::String
+    e isa RequestError && return e.message
+    e isa PG.Error && return PG.describe(e)
+    kind = String(nameof(typeof(e)))
+    if e isa ErrorException
+        said = e.msg
+        return said isa String ? said : kind
+    elseif e isa ArgumentError
+        said = e.msg
+        return said isa String ? kind * ": " * said : kind
+    elseif e isa TaskFailedException
+        return "a task failed: " * describe(e.task.exception)
+    end
+    return kind
+end
+
 mutable struct AppState
     const config::Config
     const refresh_lock::ReentrantLock
@@ -28,7 +47,7 @@ function refresh_reference!(state::AppState)
         @info "Reference data loaded" groups = length(snapshot.groups) bones = length(snapshot.bones)
         return true
     catch e
-        @atomic state.load_error = sprint(showerror, e)
+        @atomic state.load_error = describe(e)
         @error "Reference data load failed" exception = (e, catch_backtrace())
         return false
     end
@@ -43,7 +62,7 @@ recently_attempted(state::AppState) =
 function ensure_fresh!(state::AppState)
     lock(state.refresh_lock) do
         # on a worker thread, so the server keeps answering other requests
-        recently_attempted(state) || fetch(Threads.@spawn refresh_reference!(state))
+        recently_attempted(state) || wait(Threads.@spawn (refresh_reference!(state); nothing))
     end
     return
 end
@@ -51,22 +70,32 @@ end
 # Requests are handled on the interactive thread, which HTTP.jl keeps to
 # itself. Anything slow runs on a worker thread instead, so the server keeps
 # answering other requests meanwhile.
-function off_thread(work)
-    task = Threads.@spawn work()
-    try
-        return fetch(task)
-    catch e
-        # an answer for the user is passed on as it is; anything else is
-        # rethrown whole, so the log shows where on the worker thread it failed
-        e isa TaskFailedException && e.task.exception isa RequestError && throw(e.task.exception)
-        rethrow()
+# `T` is what the work gives back. The task keeps its result to itself and
+# hands back nothing: one that hands a value back is accepted by a trimmed
+# build and then fails when it is run.
+function off_thread(::Type{T}, work::F)::T where {T, F}
+    result = Ref{Union{Nothing, T}}(nothing)
+    refused = Ref{Union{Nothing, RequestError}}(nothing)
+    task = Threads.@spawn begin
+        try
+            result[] = work()
+        catch e
+            # an answer for the user is passed on as it is; anything else fails
+            # the task, so the log shows where on the worker thread it failed
+            e isa RequestError || rethrow()
+            refused[] = e
+        end
+        nothing
     end
+    wait(task)
+    problem = refused[]
+    problem === nothing || throw(problem)
+    return result[]::T
 end
 
-json_response(status, body::AbstractString) =
+json_response(status::Int, body::String)::HTTP.Response =
     HTTP.Response(status, ["Content-Type" => "application/json; charset=utf-8", "Cache-Control" => "no-store"], body)
-json_response(status, body) = json_response(status, JSON.json(body))
-error_response(status, message) = json_response(status, (error = message,))
+error_response(status::Int, message::String)::HTTP.Response = json_response(status, JSON.json((error = message,)))
 
 function meta_handler(state::AppState)
     ensure_fresh!(state)
@@ -91,7 +120,10 @@ function static_handler(state::AppState, req::HTTP.Request)
     path = HTTP.URIs.unescapeuri(HTTP.URI(req.target).path)
     parts = filter(!isempty, split(path, "/"))
     any(part -> part == ".." || startswith(part, "."), parts) && return error_response(404, "Not found")
-    file = joinpath(state.config.web_dir, parts...)
+    file = state.config.web_dir
+    for part in parts
+        file = joinpath(file, part)
+    end
     isdir(file) && (file = joinpath(file, "index.html"))
     isfile(file) || return error_response(404, "Not found")
     content_type = get(CONTENT_TYPES, lowercase(splitext(file)[2]), "application/octet-stream")
@@ -173,7 +205,14 @@ listen(handle, host, port; header_seconds = HEADER_SECONDS, body_seconds = BODY_
 # background so the health check answers while the database is slow or down.
 function serve(config::Config; host = "0.0.0.0", port = config.port)
     state = AppState(config)
-    errormonitor(Threads.@spawn ensure_fresh!(state))
+    Threads.@spawn begin
+        try
+            ensure_fresh!(state)
+        catch e
+            @error "The first load of reference data failed" error = describe(e)
+        end
+        nothing
+    end
     server = listen(handler(state), host, port)
     @info "SID listening" host port version = config.version
     return server, state
@@ -189,7 +228,7 @@ function julia_main()::Cint
     try
         main()
     catch e
-        Base.invokelatest(Base.display_error, e, catch_backtrace())
+        println(Core.stderr, "SID could not start: ", describe(e))
         return 1
     end
     return 0
