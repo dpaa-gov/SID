@@ -55,6 +55,58 @@ end
 end
 
 # Rounding as the R SID rounded: the PI from the rounded bounds
+# An unexpected error is put into words for the log: what it says where it is
+# one of the app's own kinds, and otherwise what kind of error it is.
+@testset "an error is described" begin
+    @test SS.describe(SS.RequestError(422, "Enter a known stature")) == "Enter a known stature"
+    @test SS.describe(SS.PG.Error("ERROR:  relation \"x\" does not exist\n", "42P01")) == "PostgreSQL: ERROR:  relation \"x\" does not exist (42P01)"
+    @test SS.describe(SS.PG.Error("timeout expired\n", "")) == "PostgreSQL: timeout expired"
+    @test SS.describe(ErrorException("Missing required database environment variables: DB_NAME")) == "Missing required database environment variables: DB_NAME"
+    @test SS.describe(ArgumentError("bad")) == "ArgumentError: bad"
+    @test SS.describe(BoundsError([1], 2)) == "BoundsError" && SS.describe(KeyError(:a)) == "KeyError"
+    @test (try read("/no/such/file") catch e; SS.describe(e) end) == "SystemError: opening file \"/no/such/file\""
+    failed = Threads.@spawn error("inside")
+    @test (try fetch(failed) catch e; SS.describe(e) end) == "a task failed: inside"
+end
+
+# The time reference data was loaded is written out by hand, where a trimmed
+# build cannot use Julia's own way of writing one. The two must agree.
+@testset "a time is written as Julia writes it" begin
+    times = [SS.DateTime(2026, 10, 9, 18, 30, 5), SS.DateTime(2026, 10, 9, 18, 30, 5, 250), SS.DateTime(2026, 1, 2, 3, 4, 5, 7),
+             SS.DateTime(2026, 12, 31, 23, 59, 59, 999), SS.DateTime(2026, 2, 3, 0, 0, 0, 100), SS.DateTime(2026, 2, 3, 0, 0, 0, 10),
+             SS.DateTime(999, 1, 1), SS.DateTime(1, 1, 1, 0, 0, 0, 1), SS.now(SS.UTC)]
+    @test all(time -> SS.timestamp(time) == string(time), times)
+    # through a day, a little under a second at a time
+    through_a_day = [SS.DateTime(2026, 6, 15) + SS.Millisecond(step) for step in 0:997:86_400_000]
+    @test count(time -> SS.timestamp(time) != string(time), through_a_day) == 0
+end
+
+# Each request reaches the part of the app it is for, by its method and its
+# path. With no reference data loaded, an analysis route answers 503, which
+# tells it apart from the 404 of a path that is not one.
+@testset "requests reach the right part of the app" begin
+    config = SS.Config("", 5432, "", "", "", 3838, 30, joinpath(SS.REPO_ROOT, "web"), joinpath(pkgdir(SS), "config"), "test")
+    state = SS.AppState(config)
+    @atomic state.last_attempt = SS.now(SS.UTC) # so nothing tries to reach ARDS
+    respond = SS.handler(state)
+    status(method, target) = respond(HTTP.Request(method, target, ["Content-Type" => "application/json"], Vector{UInt8}(method == "POST" ? "{}" : ""))).status
+    @test status("GET", "/healthz") == 200 && status("POST", "/healthz") == 405
+    @test status("GET", "/api/meta") == 503 && status("POST", "/api/meta") == 404
+    for path in ("/api/estimate", "/api/estimate/plot", "/api/associate")
+        @test status("POST", path) == 503 && status("GET", path) == 404 && status("PUT", path) == 404
+    end
+    # a closing or doubled slash, and what follows a question mark, make no difference
+    @test status("GET", "/healthz/") == 200 && status("GET", "/healthz?x=1") == 200
+    @test status("POST", "/api/estimate/") == 503 && status("POST", "/api//estimate?x=1") == 503 && status("GET", "//api/meta") == 503
+    # anything else under /api is not found, whatever the method; names are matched exactly
+    @test status("GET", "/api/nope") == 404 && status("POST", "/api/estimate/plot/x") == 404 && status("DELETE", "/api/meta") == 404
+    @test status("GET", "/API/meta") == 404 && status("GET", "/api/meta%2F") == 404 && status("GET", "/Healthz") == 404
+    # everything else is the page and its files, which are only read
+    @test status("GET", "/") == 200 && status("HEAD", "/js/app.js") == 200 && status("GET", "/nope.html") == 404
+    @test status("POST", "/") == 405 && status("POST", "/api") == 405 && status("GET", "/api") == 404
+    @test status("GET", "/../server/Project.toml") == 404 && status("GET", "/.env") == 404
+end
+
 # No more of a request is read than the 64 KB any request to SID may be: one of
 # a gigabyte or two would otherwise be held in memory before anything could refuse it.
 @testset "a request is read only as far as its limit" begin
@@ -189,7 +241,7 @@ end
 
 # What JSON can hold where a number belongs: only a number is one
 @testset "typed-in numbers" begin
-    read_values(text) = SS.values_field(JSON.parse(text), :values)
+    read_values(text) = SS.values_field(JSON.parse(text), "values")
     @test read_values("""{"values": {"Fem_01": 450, "fem_02": null}}""") == Dict("fem_01" => 450.0)
     for wrong in ("true", "false", "\"450\"", "0", "1e999")
         @test_throws SS.RequestError(400, "Fem_01 must be a number above 0") read_values("""{"values": {"fem_01": $wrong}}""")
@@ -288,7 +340,9 @@ if HAVE_DB
         @test message("/api/estimate", merge(estimation, (interval = 0.8,)))[1] == 400
         @test message("/api/estimate", merge(estimation, (unit = "Feet",)))[1] == 400
         @test message("/api/estimate", merge(estimation, (values = (fem_01 = -4,),))) == (400, "Fem_01 must be a number above 0")
+        # true and false are not numbers, though Julia would count them as 1 and 0
         @test message("/api/estimate", merge(estimation, (values = (fem_01 = true,),))) == (400, "Fem_01 must be a number above 0")
+        @test message("/api/estimate", merge(estimation, (values = (fem_01 = "450",),))) == (400, "Fem_01 must be a number above 0")
         @test message("/api/estimate", merge(estimation, (values = (hum_02 = 300,),))) == (400, "Unknown measurement: Hum_02")
         # a measurement the selected groups have no data for is refused, not dropped
         missing_bone = findfirst(g -> !haskey(g.bones, "humerus"), snapshot.groups)
@@ -308,7 +362,7 @@ if HAVE_DB
                        known_stature = 67, values = (fem_01 = 450,))
         @test message("/api/associate", merge(association, (known_stature = nothing,))) == (422, "Enter a known stature")
         @test message("/api/associate", merge(association, (known_stature = 0,)))[1] == 400
-        @test message("/api/associate", merge(association, (known_stature = true,)))[1] == 400
+        @test message("/api/associate", merge(association, (known_stature = true,))) == (400, "The known stature must be a number above 0")
         @test message("/api/associate", merge(association, (values = (fem_01 = nothing,),))) == (422, "Enter at least one measurement")
         @test message("/api/associate", merge(association, (values = (tib_01 = 370,),))) == (400, "Unknown measurement: Tib_01")
         @test message("/api/associate", merge(association, (element = "skull",)))[1] == 400

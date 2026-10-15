@@ -88,12 +88,17 @@ function association_sample(groups::AbstractVector{ReferenceGroup}, bone::Abstra
     for (g, reference) in enumerate(groups)
         table = get(reference.bones, bone, nothing)
         table === nothing && continue
-        columns = [findfirst(==(code), table.measurements) for code in codes]
-        any(isnothing, columns) && continue
+        found = [findfirst(==(code), table.measurements) for code in codes]
+        any(isnothing, found) && continue
+        columns = Int[j for j in found if j !== nothing]
         for i in eachindex(table.accession)
             table.side[i] == side && !ismissing(table.stature[i]) || continue
-            values = [table.values[i, j] for j in columns]
-            any(ismissing, values) && continue
+            values = Float64[]
+            for j in columns
+                value = table.values[i, j]
+                ismissing(value) || push!(values, value)
+            end
+            length(values) == length(columns) || continue # one of the measurements is missing
             push!(stature, stature_in(table.stature[i], inches))
             push!(total, sum(values))
             push!(group, g)

@@ -6,6 +6,33 @@ struct RequestError <: Exception
     message::String
 end
 
+# What the app says of itself goes out as plain lines: what is going on to
+# standard output, what has gone wrong to standard error. Julia's own log
+# messages are not used, because in a trimmed program they print nothing.
+say(line::String) = (println(Core.stdout, line); nothing)
+complain(line::String) = (println(Core.stderr, line); nothing)
+
+# An error in words, for the log. The kinds this app raises itself are given
+# with what they say; any other is named by its kind, which is as much as a
+# trimmed build can tell of an error it was not told to expect.
+function describe(@nospecialize(e))::String
+    e isa RequestError && return e.message
+    e isa PG.Error && return PG.describe(e)
+    kind = String(nameof(typeof(e)))
+    if e isa ErrorException
+        said = e.msg
+        return said isa String ? said : kind
+    elseif e isa ArgumentError
+        said = e.msg
+        return said isa String ? kind * ": " * said : kind
+    elseif e isa SystemError
+        return kind * ": " * e.prefix # what was being done, such as opening a named file
+    elseif e isa TaskFailedException
+        return "a task failed: " * describe(e.task.exception)
+    end
+    return kind
+end
+
 mutable struct AppState
     const config::Config
     const refresh_lock::ReentrantLock
@@ -25,11 +52,11 @@ function refresh_reference!(state::AppState)
         @atomic state.snapshot = snapshot
         @atomic state.meta_json = meta_json
         @atomic state.load_error = ""
-        @info "Reference data loaded" groups = length(snapshot.groups) bones = length(snapshot.bones)
+        say("Reference data loaded: " * string(length(snapshot.groups)) * " groups, " * string(length(snapshot.bones)) * " bones")
         return true
     catch e
-        @atomic state.load_error = sprint(showerror, e)
-        @error "Reference data load failed" exception = (e, catch_backtrace())
+        @atomic state.load_error = describe(e)
+        complain("Reference data load failed: " * describe(e))
         return false
     end
 end
@@ -43,7 +70,7 @@ recently_attempted(state::AppState) =
 function ensure_fresh!(state::AppState)
     lock(state.refresh_lock) do
         # on a worker thread, so the server keeps answering other requests
-        recently_attempted(state) || fetch(Threads.@spawn refresh_reference!(state))
+        recently_attempted(state) || wait(Threads.@spawn (refresh_reference!(state); nothing))
     end
     return
 end
@@ -51,29 +78,39 @@ end
 # Requests are handled on the interactive thread, which HTTP.jl keeps to
 # itself. Anything slow runs on a worker thread instead, so the server keeps
 # answering other requests meanwhile.
-function off_thread(work)
-    task = Threads.@spawn work()
-    try
-        return fetch(task)
-    catch e
-        # an answer for the user is passed on as it is; anything else is
-        # rethrown whole, so the log shows where on the worker thread it failed
-        e isa TaskFailedException && e.task.exception isa RequestError && throw(e.task.exception)
-        rethrow()
+# `T` is what the work gives back. The task keeps its result to itself and
+# hands back nothing: one that hands a value back is accepted by a trimmed
+# build and then fails when it is run.
+function off_thread(::Type{T}, work::F)::T where {T, F}
+    result = Ref{Union{Nothing, T}}(nothing)
+    refused = Ref{Union{Nothing, RequestError}}(nothing)
+    task = Threads.@spawn begin
+        try
+            result[] = work()
+        catch e
+            # an answer for the user is passed on as it is; anything else fails
+            # the task, so the log shows where on the worker thread it failed
+            e isa RequestError || rethrow()
+            refused[] = e
+        end
+        nothing
     end
+    wait(task)
+    problem = refused[]
+    problem === nothing || throw(problem)
+    return result[]::T
 end
 
-json_response(status, body::AbstractString) =
+json_response(status::Int, body::String)::HTTP.Response =
     HTTP.Response(status, ["Content-Type" => "application/json; charset=utf-8", "Cache-Control" => "no-store"], body)
-json_response(status, body) = json_response(status, JSON.json(body))
-error_response(status, message) = json_response(status, (error = message,))
+error_response(status::Int, message::String)::HTTP.Response = json_response(status, JSON.json((error = message,)))
 
 function meta_handler(state::AppState)
     ensure_fresh!(state)
     meta_json = @atomic state.meta_json
     if isempty(meta_json)
         load_error = @atomic state.load_error
-        @error "Reference data unavailable" load_error
+        complain("Reference data unavailable: " * load_error)
         return error_response(503, "Reference data could not be loaded from ARDS")
     end
     return json_response(200, meta_json)
@@ -91,7 +128,10 @@ function static_handler(state::AppState, req::HTTP.Request)
     path = HTTP.URIs.unescapeuri(HTTP.URI(req.target).path)
     parts = filter(!isempty, split(path, "/"))
     any(part -> part == ".." || startswith(part, "."), parts) && return error_response(404, "Not found")
-    file = joinpath(state.config.web_dir, parts...)
+    file = state.config.web_dir
+    for part in parts
+        file = joinpath(file, part)
+    end
     isdir(file) && (file = joinpath(file, "index.html"))
     isfile(file) || return error_response(404, "Not found")
     content_type = get(CONTENT_TYPES, lowercase(splitext(file)[2]), "application/octet-stream")
@@ -104,25 +144,38 @@ function static_handler(state::AppState, req::HTTP.Request)
     return HTTP.Response(200, headers, read(file))
 end
 
-function router(state::AppState)
-    r = HTTP.Router(req -> static_handler(state, req))
-    HTTP.register!(r, "GET", "/healthz", _ -> HTTP.Response(200, ["Content-Type" => "text/plain"], "ok"))
-    HTTP.register!(r, "GET", "/api/meta", _ -> meta_handler(state))
-    HTTP.register!(r, "POST", "/api/estimate", req -> estimate_handler(state, req))
-    HTTP.register!(r, "POST", "/api/estimate/plot", req -> estimate_plot_handler(state, req))
-    HTTP.register!(r, "POST", "/api/associate", req -> associate_handler(state, req))
-    HTTP.register!(r, "/api/**", _ -> error_response(404, "Not found"))
-    return r
+# Which part of the app a request is for. The routes are few and fixed, so
+# they are told apart here by name; a table of routes looked up as each
+# request arrives is something a trimmed build cannot follow.
+#
+# A path is taken a part at a time, so a doubled or closing slash makes no
+# difference, and what follows a question mark is not part of it.
+function route(state::AppState, req::HTTP.Request)::HTTP.Response
+    parts = filter(!isempty, split(first(split(req.target, '?'; limit = 2)), "/"))
+    is(names::String...) = length(parts) == length(names) && all(i -> parts[i] == names[i], eachindex(names))
+    if is("healthz")
+        req.method == "GET" || return HTTP.Response(405)
+        return HTTP.Response(200, ["Content-Type" => "text/plain"], "ok")
+    elseif length(parts) > 1 && parts[1] == "api"
+        if req.method == "GET"
+            is("api", "meta") && return meta_handler(state)
+        elseif req.method == "POST"
+            is("api", "estimate") && return estimate_handler(state, req)
+            is("api", "estimate", "plot") && return estimate_plot_handler(state, req)
+            is("api", "associate") && return associate_handler(state, req)
+        end
+        return error_response(404, "Not found")
+    end
+    return static_handler(state, req)
 end
 
 function handler(state::AppState)
-    route = router(state)
     return function (req::HTTP.Request)
         try
-            return route(req)
+            return route(state, req)
         catch e
             e isa RequestError && return error_response(e.status, e.message)
-            @error "Request failed" method = req.method target = req.target exception = (e, catch_backtrace())
+            complain("Request failed: " * String(req.method) * " " * String(req.target) * ": " * describe(e))
             return error_response(500, "Internal server error")
         end
     end
@@ -158,11 +211,18 @@ listen(handle, host, port; header_seconds = HEADER_SECONDS, body_seconds = BODY_
 
 # Starts listening straight away; the first reference load runs in the
 # background so the health check answers while the database is slow or down.
-function serve(config::Config; host = "0.0.0.0", port = config.port)
+function serve(config::Config; host::String = "0.0.0.0", port::Int = config.port)
     state = AppState(config)
-    errormonitor(Threads.@spawn ensure_fresh!(state))
+    Threads.@spawn begin
+        try
+            ensure_fresh!(state)
+        catch e
+            complain("The first load of reference data failed: " * describe(e))
+        end
+        nothing
+    end
     server = listen(handler(state), host, port)
-    @info "SID listening" host port version = config.version
+    say("SID listening on " * host * ":" * string(port) * ", version " * config.version)
     return server, state
 end
 
@@ -176,7 +236,7 @@ function julia_main()::Cint
     try
         main()
     catch e
-        Base.invokelatest(Base.display_error, e, catch_backtrace())
+        println(Core.stderr, "SID could not start: ", describe(e))
         return 1
     end
     return 0

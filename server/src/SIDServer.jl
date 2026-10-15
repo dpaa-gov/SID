@@ -3,11 +3,10 @@ module SIDServer
 using Dates
 using HTTP
 using JSON
-using LibPQ
-using Tables
 using SIDJ
 
 include("config.jl")
+include("pg.jl")
 include("reference.jl")
 include("meta.jl")
 include("http.jl")
