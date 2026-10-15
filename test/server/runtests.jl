@@ -239,6 +239,16 @@ end
     @test occursin("null", JSON.json(plot))
 end
 
+# What JSON can hold where a number belongs: only a number is one
+@testset "typed-in numbers" begin
+    read_values(text) = SS.values_field(JSON.parse(text), "values")
+    @test read_values("""{"values": {"Fem_01": 450, "fem_02": null}}""") == Dict("fem_01" => 450.0)
+    for wrong in ("true", "false", "\"450\"", "0", "1e999")
+        @test_throws SS.RequestError(400, "Fem_01 must be a number above 0") read_values("""{"values": {"fem_01": $wrong}}""")
+    end
+    @test isnan(SS.plain_number(true)) && SS.plain_number(67) === 67.0
+end
+
 @testset "result rows" begin
     groups = [ReferenceGroup("B group", "B", "x", "y", Dict()), ReferenceGroup("A group", "A", "x", "y", Dict())]
     model = Model(["fem_01", "tib_01"], 820.0000000001, 66.516, 63.996, 69.03, 1113, 0.0482149, 26.98765, 0.73123, false, [1 => 13, 2 => 1100])
