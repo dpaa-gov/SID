@@ -1,8 +1,10 @@
 name: Release
 
-# Publishing a GitHub Release (e.g. v2.0.0) compiles the Julia side of
-# SID once and attaches it to that release. The Dockerfile downloads the
-# asset, so Atlas never compiles Julia.
+# Publishing a GitHub Release (e.g. v1.0.0) compiles the Julia side of SID
+# in both of its builds and attaches them to that release: the trimmed one,
+# sid-trim-linux-x86_64.tar.gz, which the Dockerfile downloads so that Atlas
+# never compiles Julia, and the ordinary one, sid-linux-x86_64.tar.gz, to
+# fall back on.
 
 on:
   release:
@@ -34,36 +36,43 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: Compile
+      - name: Compile the trimmed build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: build/Dockerfile
+          build-args: TRIM=1
+          platforms: linux/amd64
+          outputs: type=local,dest=dist/trim
+
+      - name: Compile the ordinary build
         uses: docker/build-push-action@v6
         with:
           context: .
           file: build/Dockerfile
           platforms: linux/amd64
-          outputs: type=local,dest=dist
+          outputs: type=local,dest=dist/julia
 
       - name: Package
         run: |
-          tar -czf dist/sid-linux-x86_64.tar.gz -C dist sid
-          (cd dist && sha256sum sid-linux-x86_64.tar.gz > sid-linux-x86_64.tar.gz.sha256)
+          tar -czf dist/sid-trim-linux-x86_64.tar.gz -C dist/trim sid
+          tar -czf dist/sid-linux-x86_64.tar.gz -C dist/julia sid
+          cd dist
+          sha256sum sid-trim-linux-x86_64.tar.gz > sid-trim-linux-x86_64.tar.gz.sha256
+          sha256sum sid-linux-x86_64.tar.gz > sid-linux-x86_64.tar.gz.sha256
 
-      - name: Smoke test the image Atlas will build
+      - name: Smoke test the images Atlas would build
         run: |
-          docker build --build-arg BUNDLE=dist/sid-linux-x86_64.tar.gz -t sid:release .
-          docker run -d --name sid -p 3838:3838 -e DB_NAME=none -e DB_USER=none -e DB_PASS=none sid:release
-          for i in $(seq 1 60); do
-            curl -fsS http://127.0.0.1:3838/healthz && break
-            sleep 1
-          done
-          curl -fsS http://127.0.0.1:3838/healthz
-          curl -fsS http://127.0.0.1:3838/ | grep -q "<title>SID</title>"
-          docker logs sid
+          dev/smoke.sh dist/sid-trim-linux-x86_64.tar.gz
+          dev/smoke.sh dist/sid-linux-x86_64.tar.gz
 
       - name: Attach to release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release upload "$GITHUB_REF_NAME" \
+            dist/sid-trim-linux-x86_64.tar.gz \
+            dist/sid-trim-linux-x86_64.tar.gz.sha256 \
             dist/sid-linux-x86_64.tar.gz \
             dist/sid-linux-x86_64.tar.gz.sha256 \
             --clobber
