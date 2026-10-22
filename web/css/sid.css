@@ -845,6 +845,12 @@ textarea {
   white-space: nowrap;
 }
 
+/* A list of words, such as a model's measurements, wraps instead: on one
+   line a long list would push the plot aside */
+.stat-tiles.in-a-row .stat-value.stat-text {
+  white-space: normal;
+}
+
 /* On a very wide screen the results stop widening, so the plot and table
    keep their proportions. The sidebar stays at the left edge and the results
    beside it; what is left over is empty space on the right. */
@@ -874,6 +880,7 @@ textarea {
      axis numbers and title, is the plot's bottom margin (PLOT_MARGIN, common.js) */
   .summary-row .stat-tiles.in-a-row {
     flex: 0 0 290px;
+    min-width: 0; /* stays 290px whatever its tiles hold */
     flex-direction: column;
     margin-bottom: 0;
     padding-bottom: 50px;
