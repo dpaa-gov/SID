@@ -75,7 +75,7 @@ docker run --rm --network host --user "$(id -u):$(id -g)" -e HOME=/tmp \
   sh -c "pip install -q playwright==1.49.0 && python test/browser/test_ui.py"
 ```
 
-The first two run on GitHub for every push; there the server's tests skip the parts that need ARDS.
+The first two also run on GitHub when a version tag is pushed, before the release is built, and can be started by hand from the Actions page; there the server's tests skip the parts that need ARDS. Nothing runs on an ordinary push.
 
 ## Configuration
 
@@ -106,11 +106,12 @@ The image compiles nothing: the `Dockerfile` downloads the compiled Julia side f
 ### Releasing
 
 1. Set the version in `VERSION` and `ARG SID_VERSION=vX.Y.Z` in the `Dockerfile`. Update the citation here and in `CITATION`. Commit and push.
-2. Publish a GitHub Release with tag `vX.Y.Z` (for a pre-release, `vX.Y.Z-alpha.1`, with `X.Y.Z-alpha.1` in `VERSION`).
-3. The release workflow checks the versions match the tag, compiles the program, checks the image starts, and attaches `sid-linux-x86_64.tar.gz` to the release.
-4. Once the asset is on the release, deploy the tag in Atlas.
+2. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z` (for a pre-release, `vX.Y.Z-alpha.1`, with `X.Y.Z-alpha.1` in `VERSION`).
+3. The release workflow runs the tests, checks the versions match the tag, compiles the program, checks the image starts, and makes a draft GitHub Release with both bundles attached.
+4. Publish the draft from the Releases page. A draft's assets can't be downloaded, so the deploy waits for this.
+5. Once the release is published, deploy the tag in Atlas.
 
-If the workflow fails, nothing is attached and a deploy of that tag fails at the download step. Fix the problem and re-run the workflow.
+If the workflow fails, no draft is made and a deploy of that tag fails at the download step. Fix the problem and re-run the workflow.
 
 ## Open questions
 

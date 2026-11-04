@@ -1,20 +1,24 @@
 name: Release
 
-# Publishing a GitHub Release (e.g. v1.0.0) compiles the Julia side of SID
-# in both of its builds and attaches them to that release: the trimmed one,
+# Pushing a version tag (e.g. v1.0.0) runs the tests, then compiles the Julia side of SID
+# in both of its builds and attaches them to a draft release: the trimmed one,
 # sid-trim-linux-x86_64.tar.gz, which the Dockerfile downloads so that Atlas
 # never compiles Julia, and the ordinary one, sid-linux-x86_64.tar.gz, to
 # fall back on.
 
 on:
-  release:
-    types: [published]
+  push:
+    tags: ['v*']
 
 permissions:
   contents: write
 
 jobs:
+  tests:
+    uses: ./.github/workflows/tests.yml
+
   bundle:
+    needs: tests
     runs-on: ubuntu-latest
     timeout-minutes: 90
 
@@ -66,13 +70,18 @@ jobs:
           dev/smoke.sh dist/sid-trim-linux-x86_64.tar.gz
           dev/smoke.sh dist/sid-linux-x86_64.tar.gz
 
-      - name: Attach to release
+      # A draft: the bundles and notes can be checked before anyone sees them.
+      # Publish from the GitHub release page when ready.
+      - name: Create draft GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "$GITHUB_REF_NAME" \
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "SID $GITHUB_REF_NAME" \
+            --generate-notes \
+            --draft \
             dist/sid-trim-linux-x86_64.tar.gz \
             dist/sid-trim-linux-x86_64.tar.gz.sha256 \
             dist/sid-linux-x86_64.tar.gz \
-            dist/sid-linux-x86_64.tar.gz.sha256 \
-            --clobber
+            dist/sid-linux-x86_64.tar.gz.sha256
