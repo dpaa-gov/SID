@@ -276,10 +276,10 @@ $("image-form").addEventListener("submit", (event) => {
     bootstrap.Modal.getOrCreateInstance($("image-modal")).hide();
 });
 
-// The labels written on a plot ("Specimen") can be taken off, for a figure
-// that is captioned elsewhere. The choice holds for later plots too, until
-// the button is pressed again.
-let labelsHidden = false;
+// The labels written on a plot ("Specimen") are off to begin with, leaving
+// the plot clear; the toolbar button puts them on. The choice holds for later
+// plots too, until the button is pressed again.
+let labelsHidden = true;
 function toggleLabels() {
     labelsHidden = !labelsHidden;
     // on every plot drawn, not only the one whose button was pressed, so none is out of step with the choice
@@ -296,7 +296,7 @@ const PLOT_CONFIG = {
     responsive: true,
     // the only two buttons on the toolbar
     modeBarButtons: [[
-        { name: "toggleLabels", title: "Hide or show labels", icon: LABEL_ICON, click: toggleLabels },
+        { name: "toggleLabels", title: "Show or hide labels", icon: LABEL_ICON, click: toggleLabels },
         { name: "saveImage", title: "Save plot as an image", icon: Plotly.Icons.camera, click: askImageSize },
     ]],
 };
@@ -433,7 +433,7 @@ export function drawRegression(id, plot, specimen, axes) {
     ], { ...PLOT_LAYOUT, margin: PLOT_MARGIN, xaxis: { title: { text: axes.x }, ticklabeloverflow: "allow" },
         yaxis: { title: { text: axes.y }, ticklabeloverflow: "allow" },
         annotations: [{ x: specimen.x, y: specimen.y, text: "Specimen", showarrow: false, xanchor: onLeft ? "right" : "left",
-            xshift: onLeft ? -10 : 10, yanchor: "middle", font: { size: 12, color: "#2a4051" }, visible: !labelsHidden }] }, PLOT_CONFIG);
+            xshift: onLeft ? -10 : 10, yanchor: "middle", font: { size: 12, color: "#ffffff" }, bgcolor: "#0c2030", bordercolor: COLORS.gold, borderwidth: 1, borderpad: 3, visible: !labelsHidden }] }, PLOT_CONFIG);
 }
 
 // --- Stat tiles ---

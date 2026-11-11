@@ -5,7 +5,7 @@
 FROM debian:bookworm-slim AS bundle
 
 # Bump with each release
-ARG SID_VERSION=v1.0.0-alpha.4
+ARG SID_VERSION=v1.0.0-beta.1
 # The trimmed build (build/Dockerfile with TRIM=1). Or a local path, to try a
 # bundle built on this machine
 ARG BUNDLE=https://github.com/dpaa-gov/SID/releases/download/${SID_VERSION}/sid-trim-linux-x86_64.tar.gz
