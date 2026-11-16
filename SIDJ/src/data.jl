@@ -31,7 +31,9 @@ const CM_PER_INCH = 2.54
 stature_in(value, inches::Bool) = inches ? value / CM_PER_INCH : value
 
 # Individuals of the selected groups, one row each: stature and the given
-# measurements, gathered from all of an individual's bones on one side.
+# measurements, gathered from all of an individual's bones. Each measurement
+# is taken from its own side (`sides`, one per code), so a left femur can sit
+# beside a right tibia; a single side applies to them all.
 # `group` is the position in `groups` of the group each row belongs to.
 struct EstimationSample
     measurements::Vector{String}
@@ -40,8 +42,13 @@ struct EstimationSample
     group::Vector{Int}
 end
 
-function estimation_sample(groups::AbstractVector{ReferenceGroup}, side::AbstractString, codes::AbstractVector{<:AbstractString};
-                           inches::Bool = false)
+estimation_sample(groups::AbstractVector{ReferenceGroup}, side::AbstractString, codes::AbstractVector{<:AbstractString};
+                  inches::Bool = false) = estimation_sample(groups, fill(String(side), length(codes)), codes; inches)
+
+function estimation_sample(groups::AbstractVector{ReferenceGroup}, sides::AbstractVector{<:AbstractString},
+                           codes::AbstractVector{<:AbstractString}; inches::Bool = false)
+    length(sides) == length(codes) || throw(ArgumentError("one side is needed for each measurement"))
+    wanted = unique(sides)
     stature = Union{Missing, Float64}[]
     rows = Vector{Union{Missing, Float64}}[]
     group = Int[]
@@ -52,7 +59,7 @@ function estimation_sample(groups::AbstractVector{ReferenceGroup}, side::Abstrac
             columns = [(k, j) for (k, code) in enumerate(codes)
                        for j in something(findfirst(==(code), table.measurements), 0) if j > 0]
             for i in eachindex(table.accession)
-                table.side[i] == side || continue
+                table.side[i] in wanted || continue
                 r = get!(row_of, table.accession[i]) do
                     push!(stature, missing)
                     push!(rows, fill!(Vector{Union{Missing, Float64}}(undef, length(codes)), missing))
@@ -61,7 +68,7 @@ function estimation_sample(groups::AbstractVector{ReferenceGroup}, side::Abstrac
                 end
                 ismissing(stature[r]) && (stature[r] = table.stature[i])
                 for (k, j) in columns
-                    ismissing(rows[r][k]) && (rows[r][k] = table.values[i, j])
+                    sides[k] == table.side[i] && ismissing(rows[r][k]) && (rows[r][k] = table.values[i, j])
                 end
             end
         end

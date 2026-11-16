@@ -74,7 +74,7 @@ def run(page):
     expect(page.locator("#version")).to_have_text("v " + open(ROOT / "VERSION").read().strip())
     assert page.evaluate("document.getElementById('e-reference').tomselect.getValue()") == REFERENCE
     # every stature measurement the default group has, head to toe
-    codes = page.eval_on_selector_all("#e-values input", "inputs => inputs.map(i => i.dataset.code)")
+    codes = page.eval_on_selector_all("#e-values input[type=number]", "inputs => inputs.map(i => i.dataset.code)")
     assert codes == ["hum_01", "rad_01", "uln_01", "fem_01", "fem_02", "tib_01", "fib_01"], codes
 
     # ---------- estimation ----------
@@ -125,6 +125,26 @@ def run(page):
     cm = api("api/estimate", {**body, "unit": "Centimeters", "interval": 0.9})
     cm_rows = cm["results"]["rows"]
     expect(tiles.nth(0)).to_have_text(f"{cm_rows[cm['selected']][3]:.2f}cm")
+
+    # each measurement on its own side: the Side buttons over the list light
+    # neither, and the models say which side each measurement is from
+    page.click("label[for='e-values-tib_01-right']")
+    expect(page.locator("#e-side-left")).not_to_be_checked()
+    expect(page.locator("#e-side-right")).not_to_be_checked()
+    page.click("#e-process")
+    expect(page.locator("#e-results")).to_have_attribute("data-run", "3")
+    sides = {code: "right" if code == "tib_01" else "left" for code in codes}
+    mixed = api("api/estimate", {**body, "unit": "Centimeters", "interval": 0.9, "sides": sides})
+    mixed_rows = mixed["results"]["rows"]
+    expect(page.locator("#e-table tr.selected td").nth(1)).to_have_text(mixed_rows[mixed["selected"]][1])
+    assert table_cells(page, "#e-table") == expected_rows(mixed, sorted(range(len(mixed_rows)), key=lambda i: (mixed_rows[i][0], i)), places)
+    # a model of both sides, chosen, shows itself
+    page.get_by_role("cell", name="Fem_01 (L) Tib_01 (R)", exact=True).click()
+    expect(tiles.nth(3)).to_have_text("Fem_01 (L) Tib_01 (R)")
+    expect(page.locator("#error-modal")).to_be_hidden()
+    # the Side buttons set every measurement again
+    page.click("label[for='e-side-left']")
+    expect(page.locator("#e-values-tib_01-left")).to_be_checked()
 
     # Clear empties the fields and hides the result; nothing typed is an error
     page.click("#e-clear")

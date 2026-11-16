@@ -57,10 +57,30 @@ function list_field(body::Body, name::String)::Vector{String}
     return list
 end
 
-function side_field(body::Body)::String
-    side = lowercase(text_field(body, "side"))
-    side in ("left", "right") || bad_request("side must be left or right")
+function side_text(value, name::String)::String
+    value isa String || bad_request(name * " must be left or right")
+    side = lowercase(value)
+    side in ("left", "right") || bad_request(name * " must be left or right")
     return side
+end
+
+side_field(body::Body)::String = side_text(field(body, "side"), "side")
+
+# Each entered measurement's side: its own from `sides`, by code, where given,
+# and otherwise the one `side` for all. Entries for codes not entered are
+# checked but unused.
+function sides_field(body::Body, codes::Vector{String})::Vector{String}
+    given = Dict{String, String}()
+    if haskey(body, "sides")
+        value = body["sides"]
+        value isa Body || bad_request("sides must be an object of measurement sides")
+        for (code, side) in value
+            given[lowercase(code)] = side_text(side, "The side of " * uppercasefirst(code))
+        end
+    end
+    all(code -> haskey(given, code), codes) && return String[given[code] for code in codes]
+    side = side_field(body)
+    return String[get(given, code, side) for code in codes]
 end
 
 # The prediction interval's level: 90%, 95% or 99%
@@ -169,6 +189,13 @@ table_json(columns::Vector{String}, rows::Vector{Row})::Table = (columns = colum
 
 measurement_text(codes::Vector{String})::String = join(uppercasefirst.(codes), " ")
 
+# With the measurements on more than one side, each is labelled with its own:
+# "Fem_01 (L) Tib_01 (R)". On one side they read as they always have.
+function measurement_text(codes::Vector{String}, side_of::Dict{String, String})::String
+    length(unique(values(side_of))) > 1 || return measurement_text(codes)
+    return join(String[uppercasefirst(code) * (side_of[code] == "left" ? " (L)" : " (R)") for code in codes], " ")
+end
+
 # Which reference groups a result's sample came from, and how many from each
 reference_text(groups::Vector{ReferenceGroup}, counts::Vector{Pair{Int, Int}})::String =
     join(sort!(String[groups[g].label * " " * string(n) for (g, n) in counts]), ", ")
@@ -181,10 +208,10 @@ const ESTIMATE_COLUMNS = ["PI", "Measurements", "Value", "Point estimate", "Lowe
 interval_width(model::Model)::Float64 = round(round(model.fit; digits = 2) - round(model.lower; digits = 2); digits = 2)
 
 # A row is filled a cell at a time, each put in as the kind of thing it is
-function estimate_row(model::Model, groups::Vector{ReferenceGroup})::Row
+function estimate_row(model::Model, groups::Vector{ReferenceGroup}, side_of::Dict{String, String} = Dict{String, String}())::Row
     row = Cell[]
     push!(row, number_cell(interval_width(model)))
-    push!(row, measurement_text(model.measurements))
+    push!(row, measurement_text(model.measurements, side_of))
     push!(row, number_cell(round(model.value; digits = 2)))
     push!(row, number_cell(round(model.fit; digits = 2)))
     push!(row, number_cell(round(model.lower; digits = 2)))
@@ -233,20 +260,22 @@ end
 # --- Stature estimation ---
 
 # What an estimation is run on, read from the request
-const EstimationInput = @NamedTuple{groups::Vector{ReferenceGroup}, level::Float64, sample::EstimationSample, values::Vector{Float64}}
+const EstimationInput = @NamedTuple{groups::Vector{ReferenceGroup}, level::Float64, sample::EstimationSample, values::Vector{Float64},
+                                    side_of::Dict{String, String}}
 
 function estimation_input(state::AppState, body::Body)::EstimationInput
     snapshot = current_snapshot(state)
     groups = selected_groups(snapshot, list_field(body, "references"))
-    side = side_field(body)
     level = interval_field(body)
     inches = inches_field(body)
     entered = values_field(body, "values")
     offered = filter(m -> m.stature, snapshot.measurements)
     codes = entered_codes(entered, offered, groups)
-    sample = estimation_sample(groups, side, codes; inches)
+    sides = sides_field(body, codes)
+    sample = estimation_sample(groups, sides, codes; inches)
     (isempty(sample.stature) || all(ismissing, sample.stature)) && cannot_analyse(NO_REFERENCE)
-    return (groups = groups, level = level, sample = sample, values = Float64[entered[code] for code in codes])
+    return (groups = groups, level = level, sample = sample, values = Float64[entered[code] for code in codes],
+            side_of = Dict{String, String}(zip(codes, sides)))
 end
 
 # Every model, in the order they are made: one measurement, then two, and so
@@ -258,7 +287,7 @@ function estimate_handler(state::AppState, req::HTTP.Request)::HTTP.Response
     bootstrap = flag_field(body, "bootstrap")
     result = analysis(Estimate, () -> estimate(input.sample, input.values, input.level; bootstrap))
     isempty(result.models) && cannot_analyse("Not enough reference data: every model needs at least " * string(MIN_REFERENCE) * " individuals")
-    rows = Row[estimate_row(model, input.groups) for model in result.models]
+    rows = Row[estimate_row(model, input.groups, input.side_of) for model in result.models]
     widths = Float64[interval_width(model) for model in result.models]
     selected = argmin(i -> (widths[i], i), eachindex(widths))
     plot = model_plot(input.sample, result.models[selected].measurements, input.level)

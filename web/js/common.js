@@ -171,10 +171,14 @@ export class Reference {
 
 // One row per measurement: its code, with its full name on hover, beside its
 // field. What was already typed in a field stays when the list is redrawn.
-export function renderMeasurements(container, codes, reference) {
+// With `sides`, each row also has its own Left/Right choice, which stays as
+// well; a new row starts on `side`.
+export function renderMeasurements(container, codes, reference, { sides = false, side = "left" } = {}) {
     const prefix = container.id;
-    const typed = new Map([...container.querySelectorAll("input")].map((input) => [input.dataset.code, input.value]));
+    const typed = new Map([...numberFields(container)].map((input) => [input.dataset.code, input.value]));
+    const chosen = new Map(Object.entries(sidesOf(container)));
     container.replaceChildren();
+    container.classList.toggle("with-sides", sides);
     for (const code of codes) {
         const label = document.createElement("label");
         const text = document.createElement("span");
@@ -192,12 +196,45 @@ export function renderMeasurements(container, codes, reference) {
         input.step = "any";
         input.value = typed.get(code) ?? "";
         container.append(label, input);
+        if (sides) container.append(sideChoice(prefix, code, chosen.get(code) ?? side));
     }
 }
 
+// A measurement's own Left/Right, as a pair of small buttons
+function sideChoice(prefix, code, side) {
+    const group = document.createElement("div");
+    group.className = "btn-group segmented measure-side";
+    group.setAttribute("role", "group");
+    group.setAttribute("aria-label", `Side of ${capFirst(code)}`);
+    group.dataset.code = code;
+    for (const [value, text] of [["left", "L"], ["right", "R"]]) {
+        const input = document.createElement("input");
+        input.type = "radio";
+        input.className = "btn-check";
+        input.name = `${prefix}-${code}-side`;
+        input.id = `${prefix}-${code}-${value}`;
+        input.value = value;
+        input.checked = value === side;
+        const label = document.createElement("label");
+        label.className = "btn";
+        label.htmlFor = input.id;
+        label.textContent = text;
+        label.setAttribute("aria-label", capFirst(value));
+        group.append(input, label);
+    }
+    return group;
+}
+
+// The fields measurements are typed in, without the side buttons beside them
+export const numberFields = (container) => container.querySelectorAll("input[type=number]");
+
 // The values typed in, by code; blank fields are sent as null
 export const entered = (container) => Object.fromEntries(
-    [...container.querySelectorAll("input")].map((input) => [input.dataset.code, input.value === "" ? null : Number(input.value)]));
+    [...numberFields(container)].map((input) => [input.dataset.code, input.value === "" ? null : Number(input.value)]));
+
+// Each measurement's side, by code, where the rows have their own
+export const sidesOf = (container) => Object.fromEntries(
+    [...container.querySelectorAll(".measure-side")].map((group) => [group.dataset.code, group.querySelector("input:checked").value]));
 
 // --- Settings (ids prefixed "e-" or "a-") ---
 

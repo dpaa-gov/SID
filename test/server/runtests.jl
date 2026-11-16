@@ -255,6 +255,21 @@ end
     row = SS.estimate_row(model, groups)
     @test row == Any[2.52, "Fem_01 Tib_01", 820.0, 66.52, 64.0, 69.03, 1113, 0.04821, 26.99, 0.731, "OLS", "A group 1100, B group 13"]
     @test SS.ESTIMATE_COLUMNS[end] == "Reference" && length(SS.ESTIMATE_COLUMNS) == length(row)
+    # measurements on more than one side say which; on one side they read as before
+    @test SS.estimate_row(model, groups, Dict("fem_01" => "left", "tib_01" => "right"))[2] == "Fem_01 (L) Tib_01 (R)"
+    @test SS.estimate_row(model, groups, Dict("fem_01" => "right", "tib_01" => "right"))[2] == "Fem_01 Tib_01"
+end
+
+@testset "sides" begin
+    read_sides(text, codes) = SS.sides_field(SS.read_json(HTTP.Request("POST", "/", [], text)), codes)
+    @test read_sides("""{"side": "Left"}""", ["fem_01", "tib_01"]) == ["left", "left"]
+    @test read_sides("""{"sides": {"Fem_01": "right", "tib_01": "LEFT", "hum_01": "right"}}""", ["fem_01", "tib_01"]) == ["right", "left"]
+    # a measurement without its own side takes the one for all
+    @test read_sides("""{"side": "left", "sides": {"tib_01": "right"}}""", ["fem_01", "tib_01"]) == ["left", "right"]
+    @test_throws SS.RequestError(400, "Missing field: side") read_sides("""{"sides": {"tib_01": "right"}}""", ["fem_01", "tib_01"])
+    @test_throws SS.RequestError(400, "The side of Tib_01 must be left or right") read_sides("""{"sides": {"tib_01": "up"}}""", ["tib_01"])
+    @test_throws SS.RequestError(400, "The side of Tib_01 must be left or right") read_sides("""{"sides": {"tib_01": 1}}""", ["tib_01"])
+    @test_throws SS.RequestError(400, "sides must be an object of measurement sides") read_sides("""{"sides": ["left"]}""", ["tib_01"])
 end
 
 if HAVE_DB
@@ -318,6 +333,16 @@ if HAVE_DB
         first = post("/api/estimate", merge(small, (references = two,)))[2].results.rows
         @test post("/api/estimate", merge(small, (references = reverse(two),)))[2].results.rows == first
         @test any(r -> r[11] == "Bootstrap", first)
+        # each measurement on its own side, each labelled with it
+        mixed = merge(estimation, (sides = (fem_01 = "left", tib_01 = "right", hum_01 = "left"),))
+        status, both = post("/api/estimate", mixed)
+        @test status == 200 && both.results.rows[6][2] == "Fem_01 (L) Tib_01 (R)"
+        # one measurement alone is the same model whichever way the others go
+        @test both.results.rows[2][3:end] == rows[2][3:end] && both.results.rows[2][2] == "Fem_01 (L)"
+        status, plot = post("/api/estimate/plot", merge(mixed, (measurements = ["fem_01", "tib_01"],)))
+        @test status == 200 && length(plot.plot.x) == both.results.rows[6][7]
+        # all on one side through `sides` is the same as `side`
+        @test post("/api/estimate", merge(estimation, (sides = (fem_01 = "left", tib_01 = "left", hum_01 = "left"),)))[2].results.rows == rows
     end
 
     @testset "association" begin

@@ -96,6 +96,16 @@ const BIG, SMALL = group("Big", 150), group("Small", 30; offset = 5.0)
     inches = estimation_sample([SMALL], "left", ["fem_01"]; inches = true)
     @test inches.stature[1] ≈ SMALL.bones["femur"].stature[1] / 2.54
     @test isempty(estimation_sample([SMALL], "middle", ["fem_01"]).stature)
+    # each measurement from its own side: the left femur beside the right tibia
+    mixed = estimation_sample([SMALL], ["left", "right"], ["fem_01", "tib_01"])
+    @test length(mixed.stature) == 30
+    @test mixed.values[1, 1] == SMALL.bones["femur"].values[1, 1] && mixed.values[1, 2] == SMALL.bones["tibia"].values[30, 1]
+    @test ismissing(mixed.values[30, 2])
+    # the same side for each is that one side
+    same = estimation_sample([BIG, SMALL], ["left", "left"], ["fem_01", "tib_01"])
+    left = estimation_sample([BIG, SMALL], "left", ["fem_01", "tib_01"])
+    @test isequal(same.values, left.values) && isequal(same.stature, left.stature)
+    @test_throws ArgumentError estimation_sample([SMALL], ["left"], ["fem_01", "tib_01"])
 end
 
 @testset "estimation" begin

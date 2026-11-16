@@ -3,8 +3,8 @@
 // first; choosing another row in the table shows that one.
 
 import {
-    $, postJSON, showError, progress, makeSelect, makeChoice, setChoices, valuesOf, renderMeasurements, entered,
-    initSettings, initCopy, markRun, statTile, drawRegression, fixed, unitShort,
+    $, postJSON, showError, progress, makeSelect, setChoices, valuesOf, renderMeasurements, entered, numberFields,
+    sidesOf, initSettings, initCopy, markRun, statTile, drawRegression, fixed, unitShort,
 } from "./common.js";
 import { ModelTable } from "./table.js";
 
@@ -18,13 +18,33 @@ export function initEstimation(reference) {
 
     const selects = {
         reference: makeSelect("e-reference", () => referenceChanged()),
-        side: makeChoice("e-side"),
     };
     const form = initSettings("e-");
     const table = new ModelTable($("e-table"), PLACES, (i) => showModel(i));
 
+    // Each measurement has its own side. The Side buttons over the list set
+    // them all, and show the one side they share, or neither when they differ.
+    const allSides = [...document.querySelectorAll('input[name="e-side"]')];
+    const rowSides = () => Object.values(sidesOf($("e-values")));
+    function showSharedSide() {
+        const sides = rowSides();
+        if (!sides.length) return;
+        const shared = sides.every((side) => side === sides[0]) ? sides[0] : null;
+        for (const input of allSides) input.checked = input.value === shared;
+    }
+    for (const input of allSides) {
+        input.addEventListener("change", () => {
+            for (const row of $("e-values").querySelectorAll(`.measure-side input[value="${input.value}"]`)) row.checked = true;
+        });
+    }
+    $("e-values").addEventListener("change", (event) => {
+        if (event.target.matches(".measure-side input")) showSharedSide();
+    });
+
     function referenceChanged() {
-        renderMeasurements($("e-values"), reference.estimationMeasurements(labels()), reference);
+        const side = allSides.find((input) => input.checked)?.value ?? "left";
+        renderMeasurements($("e-values"), reference.estimationMeasurements(labels()), reference, { sides: true, side });
+        showSharedSide();
     }
 
     const column = (name) => request.results.columns.indexOf(name);
@@ -47,7 +67,8 @@ export function initEstimation(reference) {
     async function showModel(i) {
         const shown = request;
         try {
-            const measurements = cell(i, "Measurements").toLowerCase().split(" ");
+            // the codes, without the (L) or (R) after each when the sides differ
+            const measurements = cell(i, "Measurements").toLowerCase().split(" ").filter((word) => !word.startsWith("("));
             const { plot } = await postJSON("api/estimate/plot", { ...shown.body, measurements });
             if (shown === request && table.selected === i) draw(i, plot);
         } catch (error) {
@@ -58,9 +79,9 @@ export function initEstimation(reference) {
     initCopy($("e-copy"), () => table.copyRows());
 
     // Ready for the next specimen: the typed measurements and the result go;
-    // the reference groups, the side and the settings stay.
+    // the reference groups, the sides and the settings stay.
     $("e-clear").addEventListener("click", () => {
-        const fields = [...$("e-values").querySelectorAll("input")];
+        const fields = [...numberFields($("e-values"))];
         for (const field of fields) field.value = "";
         $("e-results").hidden = true;
         fields[0]?.focus();
@@ -68,7 +89,7 @@ export function initEstimation(reference) {
 
     $("e-form").addEventListener("submit", async (event) => {
         event.preventDefault();
-        const body = { references: labels(), side: selects.side.getValue(), ...form.settings(), values: entered($("e-values")) };
+        const body = { references: labels(), sides: sidesOf($("e-values")), ...form.settings(), values: entered($("e-values")) };
         progress.show("Fitting models...");
         progress.set(50, "Fitting models...");
         try {
