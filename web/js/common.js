@@ -101,14 +101,6 @@ export function makeSelect(id, onChange, describe) {
     return select;
 }
 
-// A choice between a few fixed options, as a row of buttons: a side, the
-// interval, the unit. Read like a dropdown (`getValue`), so the forms treat
-// the two alike.
-export function makeChoice(name) {
-    const inputs = [...document.querySelectorAll(`input[name="${name}"]`)];
-    return { getValue: () => inputs.find((input) => input.checked).value };
-}
-
 // Replaces the choices. A dropdown keeps its value where still valid;
 // otherwise selects `fallback` (the first value for a dropdown).
 export function setChoices(select, values, fallback) {
@@ -124,7 +116,6 @@ export function setChoices(select, values, fallback) {
     select.refreshOptions(false);
 }
 
-export const valueOf = (select) => select.getValue();
 export const valuesOf = (select) => [].concat(select.getValue()).filter(Boolean);
 
 // --- Reference data: what the selected groups can support ---

@@ -270,6 +270,12 @@ end
     @test_throws SS.RequestError(400, "The side of Tib_01 must be left or right") read_sides("""{"sides": {"tib_01": "up"}}""", ["tib_01"])
     @test_throws SS.RequestError(400, "The side of Tib_01 must be left or right") read_sides("""{"sides": {"tib_01": 1}}""", ["tib_01"])
     @test_throws SS.RequestError(400, "sides must be an object of measurement sides") read_sides("""{"sides": ["left"]}""", ["tib_01"])
+    # association's sides are by bone, named in any case too
+    bone_sides(text, bones) = SS.bone_sides_field(SS.read_json(HTTP.Request("POST", "/", [], text)), bones)
+    @test bone_sides("""{"sides": {"Femur": "Right", "tibia": "left", "skull": "left"}}""", ["femur", "tibia"]) == ["right", "left"]
+    @test bone_sides("""{"side": "left", "sides": {"TIBIA": "right"}}""", ["femur", "tibia"]) == ["left", "right"]
+    @test_throws SS.RequestError(400, "Missing field: side") bone_sides("""{"sides": {"tibia": "right"}}""", ["femur", "tibia"])
+    @test_throws SS.RequestError(400, "The side of the femur must be left or right") bone_sides("""{"sides": {"Femur": "up"}}""", ["femur"])
 end
 
 if HAVE_DB

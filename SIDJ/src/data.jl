@@ -141,14 +141,32 @@ function association_sample(groups::AbstractVector{ReferenceGroup}, bones::Abstr
         end
         # a group without one of the bones has nobody with them all
         !isempty(parts) && length(parts) == length(bones) || continue
-        # the first bone's individuals, kept where every other bone has them too
-        others = [Dict{String, Float64}(zip(rows.accession, rows.sum)) for rows in parts[2:end]]
+        # The first bone's individuals, kept where every other bone has them
+        # too. Several bones are joined by individual, so an individual is one
+        # row whichever bone comes first: were the reference data to hold two
+        # rows of theirs for a bone and side, the first is theirs, as it is in
+        # estimation. Those with every bone are then some of those with each.
+        # One bone alone is not joined: it is every row, as it has always been.
+        others = Dict{String, Float64}[]
+        for rows in parts[2:end]
+            sums = Dict{String, Float64}()
+            for (accession, value) in zip(rows.accession, rows.sum)
+                get!(sums, accession, value)
+            end
+            push!(others, sums)
+        end
         first = parts[1]
+        seen = Set{String}()
         for i in eachindex(first.accession)
-            all(other -> haskey(other, first.accession[i]), others) || continue
+            accession = first.accession[i]
+            if !isempty(others)
+                accession in seen && continue
+                push!(seen, accession)
+            end
+            all(other -> haskey(other, accession), others) || continue
             sum_of_all = first.sum[i]
             for other in others
-                sum_of_all += other[first.accession[i]]
+                sum_of_all += other[accession]
             end
             push!(stature, first.stature[i])
             push!(total, sum_of_all)

@@ -180,4 +180,20 @@ end
     @test alone.sum == femur.sum && alone.stature == femur.stature && alone.group == femur.group
     @test isempty(association_sample([BIG], [SpecimenBone("femur", "left", ["fem_01"]), SpecimenBone("humerus", "left", ["hum_01"])]).stature)
     @test isempty(association_sample([BIG], SpecimenBone[]).stature)
+
+    # Were an individual to have two rows for a bone and side, joined bones take the first of
+    # them, whichever bone is named first, and those with every bone stay some of those with each
+    again(table, value) = BoneTable(vcat(table.accession, table.accession[1]), vcat(table.side, "left"),
+        vcat(table.stature, table.stature[1]), table.measurements, vcat(table.values, fill(value, 1, size(table.values, 2))))
+    twice = ReferenceGroup("Twice", "Twice", "a", "b", Dict("femur" => again(SMALL.bones["femur"], 999.0),
+                                                            "tibia" => again(SMALL.bones["tibia"], 888.0)))
+    fem, tib = SpecimenBone("femur", "left", ["fem_01"]), SpecimenBone("tibia", "left", ["tib_01"])
+    once = association_sample([SMALL], [fem, tib])
+    for order in ([fem, tib], [tib, fem])
+        joined = association_sample([twice], order)
+        @test joined.sum == once.sum && joined.stature == once.stature
+        @test all(part -> length(joined.sum) <= length(association_sample([twice], [part]).sum), order)
+    end
+    # one bone alone is every row, as it has always been
+    @test length(association_sample([twice], [fem]).sum) == 31
 end

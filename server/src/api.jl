@@ -86,18 +86,19 @@ end
 # Each of an association's bones' side: its own from `sides`, by bone, where
 # given, and otherwise the one `side` for all. A bone's measurements are all
 # on its side. Entries for bones with nothing entered are checked but unused.
+# A bone is named in any case, as a measurement is.
 function bone_sides_field(body::Body, bones::Vector{String})::Vector{String}
     given = Dict{String, String}()
     if haskey(body, "sides")
         value = body["sides"]
         value isa Body || bad_request("sides must be an object of element sides")
         for (bone, side) in value
-            given[bone] = side_text(side, "The side of the " * bone)
+            given[lowercase(bone)] = side_text(side, "The side of the " * lowercase(bone))
         end
     end
-    all(bone -> haskey(given, bone), bones) && return String[given[bone] for bone in bones]
+    all(bone -> haskey(given, lowercase(bone)), bones) && return String[given[lowercase(bone)] for bone in bones]
     side = side_field(body)
-    return String[get(given, bone, side) for bone in bones]
+    return String[get(given, lowercase(bone), side) for bone in bones]
 end
 
 # The prediction interval's level: 90%, 95% or 99%
