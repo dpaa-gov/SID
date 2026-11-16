@@ -21,7 +21,7 @@ Reference data is re-read from ARDS when the page is opened, so anything switche
 ## Using the app
 
 1. Choose one or more **reference groups**. Selecting several pools their individuals.
-2. **Estimation:** type the measurements and choose each one's side (L/R beside it; **Side** above the list sets them all). A model whose measurements come from more than one side uses the reference individuals who have each of them on its side, and its measurements are labelled (L) or (R). **Association:** choose the element and side, and type the known stature and the measurements.
+2. **Estimation:** type the measurements and choose each one's side (L/R beside it; **Side** above the list sets them all). A model uses the reference individuals who have each of its measurements on that measurement's side. When the typed measurements are on more than one side, every model's measurements are labelled (L) or (R). **Association:** choose the element and side, and type the known stature and the measurements.
 3. Choose the prediction interval and the stature unit.
 4. Press **Estimate** or **Associate**.
 

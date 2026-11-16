@@ -215,6 +215,8 @@ function sideChoice(prefix, code, side) {
         input.id = `${prefix}-${code}-${value}`;
         input.value = value;
         input.checked = value === side;
+        // Tab goes field to field; the Side buttons over the list stay in reach
+        input.tabIndex = -1;
         const label = document.createElement("label");
         label.className = "btn";
         label.htmlFor = input.id;

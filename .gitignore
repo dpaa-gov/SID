@@ -16,6 +16,9 @@ test/parity/data/
 # Browser test screenshots
 test/browser/screens/
 
+# Python bytecode, left by the browser test
+__pycache__/
+
 # OS
 .DS_Store
 Thumbs.db
