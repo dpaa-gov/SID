@@ -16,7 +16,7 @@ include("estimate.jl")     # stature estimation: one model per set of measuremen
 include("associate.jl")    # stature association: does a known stature fit
 
 export BoneTable, ReferenceGroup
-export EstimationSample, AssociationSample, estimation_sample, association_sample
+export EstimationSample, AssociationSample, SpecimenBone, estimation_sample, association_sample
 export LineFit, fit_line, prediction, bootstrap_prediction, bootstrap_seed
 export Model, Estimate, Association, estimate, associate, model_plot, association_plot
 export available_measurements, BOOTSTRAP_BELOW, BOOTSTRAP_DRAWS, MIN_REFERENCE

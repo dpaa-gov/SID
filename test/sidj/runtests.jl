@@ -162,4 +162,22 @@ end
     @test_throws ArgumentError associate(association_sample([group("Tiny", 9)], "femur", "left", ["fem_01"]), 400, 170, 0.95)
     plot = association_plot(femur, 0.9)
     @test issorted(plot.x) && length(plot.x) == length(femur.stature)
+
+    # several bones, each on its own side: the individuals who have them all, everything summed
+    both = association_sample([BIG, SMALL], [SpecimenBone("femur", "left", ["fem_01", "fem_02"]), SpecimenBone("tibia", "right", ["tib_01"])])
+    @test both.measurements == ["fem_01", "fem_02", "tib_01"] && length(both.stature) == 144
+    @test both.sum[1] == sum(BIG.bones["femur"].values[1, :]) + BIG.bones["tibia"].values[150, 1]
+    @test both.stature == femur.stature && both.group == femur.group
+    # the last individual of each group has no tibia
+    pair = association_sample([BIG, SMALL], [SpecimenBone("femur", "left", ["fem_01"]), SpecimenBone("tibia", "left", ["tib_01"])])
+    @test length(pair.stature) == 178 && associate(pair, 830, 170, 0.95).groups == [1 => 149, 2 => 29]
+    # the same individuals and sums as estimation's model of the two
+    joined = estimation_sample([BIG, SMALL], "left", ["fem_01", "tib_01"])
+    keep = [i for i in 1:180 if !ismissing(joined.values[i, 2])]
+    @test pair.sum == [joined.values[i, 1] + joined.values[i, 2] for i in keep] && pair.stature == joined.stature[keep]
+    # one bone given as a list is that bone; a group without one of the bones gives nobody
+    alone = association_sample([BIG, SMALL], [SpecimenBone("femur", "left", ["fem_01", "fem_02"])])
+    @test alone.sum == femur.sum && alone.stature == femur.stature && alone.group == femur.group
+    @test isempty(association_sample([BIG], [SpecimenBone("femur", "left", ["fem_01"]), SpecimenBone("humerus", "left", ["hum_01"])]).stature)
+    @test isempty(association_sample([BIG], SpecimenBone[]).stature)
 end

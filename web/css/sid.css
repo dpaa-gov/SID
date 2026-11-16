@@ -259,6 +259,27 @@ textarea {
   grid-template-columns: max-content minmax(0, 1fr) max-content;
 }
 
+/* Association's list goes bone by bone: a bone's name, with its side at the
+   right, over the rows of its measurements. One bone alone has no heading:
+   the Side buttons over the list are its side. */
+.well .measure-list .bone-heading {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--os-text);
+}
+
+.well .measure-list .bone-heading:not(:first-child) {
+  margin-top: 10px;
+}
+
+.well .measure-list.one-bone .bone-heading {
+  display: none;
+}
+
 .well .measure-side .btn {
   width: 30px;
   padding: 0;

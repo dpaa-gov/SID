@@ -4,7 +4,7 @@
 
 import {
     $, postJSON, showError, progress, makeSelect, setChoices, valuesOf, renderMeasurements, entered, numberFields,
-    sidesOf, initSettings, initCopy, markRun, statTile, drawRegression, fixed, unitShort,
+    sidesOf, initSharedSide, initSettings, initCopy, markRun, statTile, drawRegression, fixed, unitShort,
 } from "./common.js";
 import { ModelTable } from "./table.js";
 
@@ -24,27 +24,11 @@ export function initEstimation(reference) {
 
     // Each measurement has its own side. The Side buttons over the list set
     // them all, and show the one side they share, or neither when they differ.
-    const allSides = [...document.querySelectorAll('input[name="e-side"]')];
-    const rowSides = () => Object.values(sidesOf($("e-values")));
-    function showSharedSide() {
-        const sides = rowSides();
-        if (!sides.length) return;
-        const shared = sides.every((side) => side === sides[0]) ? sides[0] : null;
-        for (const input of allSides) input.checked = input.value === shared;
-    }
-    for (const input of allSides) {
-        input.addEventListener("change", () => {
-            for (const row of $("e-values").querySelectorAll(`.measure-side input[value="${input.value}"]`)) row.checked = true;
-        });
-    }
-    $("e-values").addEventListener("change", (event) => {
-        if (event.target.matches(".measure-side input")) showSharedSide();
-    });
+    const sides = initSharedSide("e-side", $("e-values"));
 
     function referenceChanged() {
-        const side = allSides.find((input) => input.checked)?.value ?? "left";
-        renderMeasurements($("e-values"), reference.estimationMeasurements(labels()), reference, { sides: true, side });
-        showSharedSide();
+        renderMeasurements($("e-values"), reference.estimationMeasurements(labels()), reference, { sides: true, side: sides.value() });
+        sides.show();
     }
 
     const column = (name) => request.results.columns.indexOf(name);

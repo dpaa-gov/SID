@@ -3,7 +3,7 @@
 Stature identification. SID estimates living stature from skeletal measurements, and tests whether a known stature is consistent with a bone, by regression on reference populations.
 
 - **Estimation:** stature predicted from the measurements, each from its own side, with a prediction interval.
-- **Association:** whether a known stature fits the measurements of one bone.
+- **Association:** whether a known stature fits the measurements of one or more bones, each from its own side.
 
 ![SID](screenshot.png)
 
@@ -21,11 +21,13 @@ Reference data is re-read from ARDS when the page is opened, so anything switche
 ## Using the app
 
 1. Choose one or more **reference groups**. Selecting several pools their individuals.
-2. **Estimation:** type the measurements and choose each one's side (L/R beside it; **Side** above the list sets them all). A model uses the reference individuals who have each of its measurements on that measurement's side. When the typed measurements are on more than one side, every model's measurements are labelled (L) or (R). **Association:** choose the element and side, and type the known stature and the measurements.
+2. **Estimation:** type the measurements and choose each one's side (L/R beside it; **Side** above the list sets them all). A model uses the reference individuals who have each of its measurements on that measurement's side. When the typed measurements are on more than one side, every model's measurements are labelled (L) or (R). **Association:** choose the elements, type the known stature and each element's measurements, and choose each element's side (L/R beside its name when there are several; **Side** above the list sets them all).
 3. Choose the prediction interval and the stature unit.
 4. Press **Estimate** or **Associate**.
 
 **Method.** A model sums the measurements it uses and fits ordinary least squares over the reference individuals who have all of them: estimation regresses stature on the sum, association the sum on stature. Intervals are normal-theory prediction intervals. Association's p-value is a two-sided t-test of the specimen's sum against the value predicted at the known stature. A model needs at least 10 reference individuals.
+
+**Association results.** What is entered is one model: every measurement of every element, summed, over the reference individuals who have them all. Its row is first. Several elements are taken to be one individual's, and a sum can hide a mismatch between them (a long femur and a short tibia sum to a plausible value), so each element is also tested on its own, a row apiece under the model's; click a row to see its plot. **Copy** copies every row.
 
 **Estimation results.** Every combination of the entered measurements is a model, one per row, sorted by **PI** (point estimate minus lower bound). The narrowest is selected first; click a row to see its plot. **Copy** copies the selected row.
 

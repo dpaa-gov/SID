@@ -352,7 +352,35 @@ if HAVE_DB
         row = only(body.results.rows)
         @test collect(body.results.columns) == SS.ASSOCIATION_COLUMNS
         @test row[2] == "Fem_01 Fem_02" && row[3] == 896 && row[11] == 170 && 0 <= row[12] <= 1
-        @test length(body.plot.x) == row[7]
+        @test length(body.plot.x) == row[7] && isempty(body.bone_plots)
+        # the same without `element`: the measurements say which bone, and `sides` its side
+        femur = (references = trotter, sides = (femur = "left",), interval = 0.9, unit = "Centimeters", known_stature = 170,
+                 values = (fem_01 = 450, fem_02 = 446))
+        @test post("/api/associate", femur)[2].results.rows == body.results.rows
+
+        # Several bones are one model: everything summed, over the individuals who have it all.
+        # A row for each bone alone follows, the same as that bone run by itself.
+        specimen = (references = trotter, sides = (femur = "left", tibia = "right"), interval = 0.9, unit = "Centimeters",
+                    known_stature = 170, values = (tib_01 = 370, fem_01 = 450, fem_02 = 446))
+        status, both = post("/api/associate", specimen)
+        @test status == 200 && length(both.results.rows) == 3 && length(both.bone_plots) == 2
+        combined, femur_row, tibia_row = both.results.rows
+        @test combined[2] == "Fem_01 (L) Fem_02 (L) Tib_01 (R)" && combined[3] == 1266 && 0 <= combined[12] <= 1
+        @test femur_row[2] == "Fem_01 (L) Fem_02 (L)" && femur_row[3:end] == row[3:end]
+        tibia = post("/api/associate", merge(specimen, (values = (tib_01 = 370,),)))[2]
+        @test tibia_row[2] == "Tib_01 (R)" && tibia_row[3:end] == only(tibia.results.rows)[3:end] && tibia.results.rows[1][2] == "Tib_01"
+        @test combined[7] <= min(femur_row[7], tibia_row[7])
+        @test length(both.plot.x) == combined[7] && [length(p.x) for p in both.bone_plots] == [femur_row[7], tibia_row[7]]
+        @test both.bone_plots[2].x == tibia.plot.x
+        # the individuals are those of estimation's model of the same measurements on the same sides
+        _, models = post("/api/estimate", (references = trotter, sides = (fem_01 = "left", tib_01 = "right"), interval = 0.9,
+            unit = "Centimeters", bootstrap = false, values = (fem_01 = 450, tib_01 = 370)))
+        pair = post("/api/associate", merge(specimen, (values = (fem_01 = 450, tib_01 = 370),)))[2].results.rows[1]
+        @test pair[2] == models.results.rows[3][2] == "Fem_01 (L) Tib_01 (R)"
+        @test pair[7] == models.results.rows[3][7] && pair[10] == models.results.rows[3][10]
+        # on one side nothing is labelled; a bone without a side of its own takes `side`
+        one_side = post("/api/associate", merge(specimen, (sides = (tibia = "left",), side = "left")))[2].results.rows
+        @test [r[2] for r in one_side] == ["Fem_01 Fem_02 Tib_01", "Fem_01 Fem_02", "Tib_01"] && one_side[2][3:end] == row[3:end]
     end
 
     # What the R SID refused, and what the page cannot send
@@ -391,6 +419,11 @@ if HAVE_DB
         @test message("/api/associate", merge(association, (values = (fem_01 = nothing,),))) == (422, "Enter at least one measurement")
         @test message("/api/associate", merge(association, (values = (tib_01 = 370,),))) == (400, "Unknown measurement: Tib_01")
         @test message("/api/associate", merge(association, (element = "skull",)))[1] == 400
+        @test message("/api/associate", merge(association, (element = "femur", sides = (femur = "up",)))) == (400, "The side of the femur must be left or right")
+        @test message("/api/associate", merge(association, (sides = ["left"],))) == (400, "sides must be an object of element sides")
+        several = (references = trotter, interval = 0.95, unit = "Inches", known_stature = 67, values = (fem_01 = 450, tib_01 = 370))
+        @test message("/api/associate", merge(several, (sides = (femur = "left",),))) == (400, "Missing field: side")
+        @test message("/api/associate", merge(several, (side = "left", values = (fem_01 = 450, sku_01 = 180)))) == (400, "Unknown measurement: Sku_01")
         @test respond(HTTP.Request("POST", "/api/estimate", [], "not json")).status == 400
     end
 

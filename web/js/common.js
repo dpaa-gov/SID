@@ -169,38 +169,67 @@ export class Reference {
 
 // --- Measurement fields ---
 
-// One row per measurement: its code, with its full name on hover, beside its
-// field. What was already typed in a field stays when the list is redrawn.
-// With `sides`, each row also has its own Left/Right choice, which stays as
-// well; a new row starts on `side`.
+// A measurement's code, with its full name on hover, and the field it is typed in
+function measurementField(prefix, code, reference, value) {
+    const label = document.createElement("label");
+    const text = document.createElement("span");
+    text.textContent = capFirst(code);
+    if (reference.name.get(code)) text.dataset.tooltip = reference.name.get(code);
+    label.htmlFor = `${prefix}-${code}`;
+    label.append(text);
+    const input = document.createElement("input");
+    input.type = "number";
+    input.className = "form-control";
+    input.id = `${prefix}-${code}`;
+    input.dataset.code = code;
+    input.min = 0;
+    input.max = 999;
+    input.step = "any";
+    input.value = value ?? "";
+    return [label, input];
+}
+
+// What is typed in a list's fields, by code
+const typedIn = (container) => new Map([...numberFields(container)].map((input) => [input.dataset.code, input.value]));
+
+// One row per measurement: its code beside its field. What was already typed
+// in a field stays when the list is redrawn. With `sides`, each row also has
+// its own Left/Right choice, which stays as well; a new row starts on `side`.
 export function renderMeasurements(container, codes, reference, { sides = false, side = "left" } = {}) {
     const prefix = container.id;
-    const typed = new Map([...numberFields(container)].map((input) => [input.dataset.code, input.value]));
+    const typed = typedIn(container);
     const chosen = new Map(Object.entries(sidesOf(container)));
     container.replaceChildren();
     container.classList.toggle("with-sides", sides);
     for (const code of codes) {
-        const label = document.createElement("label");
-        const text = document.createElement("span");
-        text.textContent = capFirst(code);
-        if (reference.name.get(code)) text.dataset.tooltip = reference.name.get(code);
-        label.htmlFor = `${prefix}-${code}`;
-        label.append(text);
-        const input = document.createElement("input");
-        input.type = "number";
-        input.className = "form-control";
-        input.id = `${prefix}-${code}`;
-        input.dataset.code = code;
-        input.min = 0;
-        input.max = 999;
-        input.step = "any";
-        input.value = typed.get(code) ?? "";
-        container.append(label, input);
+        container.append(...measurementField(prefix, code, reference, typed.get(code)));
         if (sides) container.append(sideChoice(prefix, code, chosen.get(code) ?? side));
     }
 }
 
-// A measurement's own Left/Right, as a pair of small buttons
+// Association's list, bone by bone: each bone's name and its Left/Right over
+// the rows of its measurements, which are all on that side. `bones` is a list
+// of { bone, codes }. What was typed and each bone's side stay when the list
+// is redrawn; a new bone starts on `side`. One bone alone has no heading on
+// screen (css/sid.css): the Side buttons over the list are its side.
+export function renderBones(container, bones, reference, side = "left") {
+    const prefix = container.id;
+    const typed = typedIn(container);
+    const chosen = new Map(Object.entries(sidesOf(container)));
+    container.replaceChildren();
+    container.classList.toggle("one-bone", bones.length === 1);
+    for (const { bone, codes } of bones) {
+        const heading = document.createElement("div");
+        heading.className = "bone-heading";
+        const name = document.createElement("span");
+        name.textContent = capFirst(bone);
+        heading.append(name, sideChoice(prefix, bone, chosen.get(bone) ?? side));
+        container.append(heading);
+        for (const code of codes) container.append(...measurementField(prefix, code, reference, typed.get(code)));
+    }
+}
+
+// A measurement's own Left/Right, or a bone's, as a pair of small buttons
 function sideChoice(prefix, code, side) {
     const group = document.createElement("div");
     group.className = "btn-group segmented measure-side";
@@ -212,7 +241,7 @@ function sideChoice(prefix, code, side) {
         input.type = "radio";
         input.className = "btn-check";
         input.name = `${prefix}-${code}-side`;
-        input.id = `${prefix}-${code}-${value}`;
+        input.id = `${prefix}-${code}-${value}`.replace(/\s+/g, "_");
         input.value = value;
         input.checked = value === side;
         // Tab goes field to field; the Side buttons over the list stay in reach
@@ -234,9 +263,33 @@ export const numberFields = (container) => container.querySelectorAll("input[typ
 export const entered = (container) => Object.fromEntries(
     [...numberFields(container)].map((input) => [input.dataset.code, input.value === "" ? null : Number(input.value)]));
 
-// Each measurement's side, by code, where the rows have their own
+// Each side chosen in a list, by what it is the side of: a measurement's code
+// where the rows have their own, a bone where the bones do
 export const sidesOf = (container) => Object.fromEntries(
     [...container.querySelectorAll(".measure-side")].map((group) => [group.dataset.code, group.querySelector("input:checked").value]));
+
+// The Side buttons (radio inputs named `name`) over a list with sides of its
+// own. Pressing one sets every side in the list; they show the one side the
+// list shares, or neither when its sides differ. `show` puts them right after
+// the list is redrawn; `value` is the side a new row starts on.
+export function initSharedSide(name, container) {
+    const inputs = [...document.querySelectorAll(`input[name="${name}"]`)];
+    const show = () => {
+        const sides = Object.values(sidesOf(container));
+        if (!sides.length) return;
+        const shared = sides.every((side) => side === sides[0]) ? sides[0] : null;
+        for (const input of inputs) input.checked = input.value === shared;
+    };
+    for (const input of inputs) {
+        input.addEventListener("change", () => {
+            for (const row of container.querySelectorAll(`.measure-side input[value="${input.value}"]`)) row.checked = true;
+        });
+    }
+    container.addEventListener("change", (event) => {
+        if (event.target.matches(".measure-side input")) show();
+    });
+    return { show, value: () => inputs.find((input) => input.checked)?.value ?? "left" };
+}
 
 // --- Settings (ids prefixed "e-" or "a-") ---
 

@@ -55,6 +55,9 @@ using PrecompileTools: @setup_workload, @compile_workload
         post("/api/estimate/plot", merge(mixed, (measurements = ["fem_01", "tib_01"],)))
         post("/api/associate", (references = ["Sample 120", "Sample 40"], element = "femur", side = "right",
             interval = 0.9, unit = "Centimeters", known_stature = 170.5, values = (fem_01 = 452.5, fem_02 = 460.0)))
+        # several bones, each on its own side, as the page sends them
+        post("/api/associate", (references = ["Sample 120"], sides = (femur = "left", tibia = "right"), interval = 0.95,
+            unit = "Inches", known_stature = 67, values = (fem_01 = 452.5, fem_02 = 460.0, tib_01 = 371.0)))
         post("/api/associate", (references = ["Sample 40"], element = "femur", side = "left",
             interval = 0.99, unit = "Inches", known_stature = nothing, values = (fem_01 = 452.5,)))
         post("/api/estimate", (references = ["Nope"],))

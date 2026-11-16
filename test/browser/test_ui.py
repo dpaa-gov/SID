@@ -155,7 +155,12 @@ def run(page):
 
     # ---------- association ----------
     page.click("#nav-association")
+    # one element to begin with, the first. Alone it has no heading: the Side buttons are its side
+    assert page.evaluate("document.getElementById('a-element').tomselect.getValue()") == ["humerus"]
     choose(page, "a-element", "femur")
+    page.keyboard.press("Escape")
+    page.click(".ts-wrapper:has(#a-element-ts-control) .item[data-value='humerus'] .remove")
+    expect(page.locator("#a-values .bone-heading")).to_be_hidden()
     page.fill("#a-known", "67")
     fill(page, "a", {"fem_01": 450})
     page.click("#a-process")
@@ -177,6 +182,44 @@ def run(page):
     in_cm = api("api/associate", {"references": REFERENCE, "element": "femur", "side": "left", "interval": 0.95,
                                   "unit": "Centimeters", "known_stature": 170, "values": {"fem_01": 450}})
     assert table_cells(page, "#a-table") == expected_rows(in_cm, [0], a_places)
+
+    # a second element: each has its name and its own side over its measurements,
+    # head to toe, and what was typed for the first stays
+    choose(page, "a-element", "humerus")
+    page.keyboard.press("Escape")
+    expect(page.locator("#a-values .bone-heading > span")).to_have_text(["Humerus", "Femur"])
+    assert page.evaluate("document.getElementById('a-element').tomselect.getValue()") == ["humerus", "femur"]
+    expect(page.locator("#a-values-fem_01")).to_have_value("450")
+    fill(page, "a", {"hum_01": 330})
+    page.click("label[for='a-values-humerus-right']")
+    expect(page.locator("#a-side-left")).not_to_be_checked()
+    expect(page.locator("#a-side-right")).not_to_be_checked()
+    page.click("#a-process")
+    expect(page.locator("#a-results")).to_have_attribute("data-run", "3")
+    both = api("api/associate", {"references": REFERENCE, "sides": {"humerus": "right", "femur": "left"}, "interval": 0.95,
+                                 "unit": "Centimeters", "known_stature": 170, "values": {"hum_01": 330, "fem_01": 450}})
+    both_rows = both["results"]["rows"]
+    # the model first, chosen, then each element alone
+    assert [row[1] for row in both_rows] == ["Hum_01 (R) Fem_01 (L)", "Hum_01 (R)", "Fem_01 (L)"], both_rows
+    assert table_cells(page, "#a-table") == expected_rows(both, [0, 1, 2], a_places)
+    expect(page.locator("#a-table tr.selected td").nth(1)).to_have_text(both_rows[0][1])
+    a_tiles = page.locator("#a-summary .stat-value")
+    expect(a_tiles.nth(0)).to_have_text(f"{both_rows[0][columns.index('p')]:.3f}")
+    page.screenshot(path=str(SCREENS / "association-elements.png"), full_page=True)
+    # an element's row, chosen, shows that element's test
+    page.locator("#a-table tbody tr").nth(2).click()
+    expect(page.locator("#a-table tr.selected td").nth(1)).to_have_text("Fem_01 (L)")
+    expect(a_tiles.nth(0)).to_have_text(f"{both_rows[2][columns.index('p')]:.3f}")
+    expect(a_tiles.nth(3)).to_have_text(f"{both_rows[2][columns.index('n')]:,}")
+    # Copy takes every row
+    page.click("#a-copy")
+    expect(page.locator("#a-copy span")).to_have_text("Copied")
+    copied = [line.split("\t") for line in page.evaluate("navigator.clipboard.readText()").split("\n")]
+    assert copied == [columns] + [[shown(c, v, a_places) for c, v in zip(columns, row)] for row in both_rows], copied
+    # the Side buttons set every element again
+    page.click("label[for='a-side-left']")
+    expect(page.locator("#a-values-humerus-left")).to_be_checked()
+    expect(page.locator("#error-modal")).to_be_hidden()
     page.fill("#a-known", "")
     page.click("#a-process")
     expect(page.locator("#error-text")).to_have_text("Enter a known stature")

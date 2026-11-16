@@ -83,6 +83,23 @@ function sides_field(body::Body, codes::Vector{String})::Vector{String}
     return String[get(given, code, side) for code in codes]
 end
 
+# Each of an association's bones' side: its own from `sides`, by bone, where
+# given, and otherwise the one `side` for all. A bone's measurements are all
+# on its side. Entries for bones with nothing entered are checked but unused.
+function bone_sides_field(body::Body, bones::Vector{String})::Vector{String}
+    given = Dict{String, String}()
+    if haskey(body, "sides")
+        value = body["sides"]
+        value isa Body || bad_request("sides must be an object of element sides")
+        for (bone, side) in value
+            given[bone] = side_text(side, "The side of the " * bone)
+        end
+    end
+    all(bone -> haskey(given, bone), bones) && return String[given[bone] for bone in bones]
+    side = side_field(body)
+    return String[get(given, bone, side) for bone in bones]
+end
+
 # The prediction interval's level: 90%, 95% or 99%
 const LEVELS = (0.9, 0.95, 0.99)
 function interval_field(body::Body)::Float64
@@ -228,10 +245,10 @@ end
 const ASSOCIATION_COLUMNS = ["PI", "Measurements", "Value", "Point estimate", "Lower", "Upper", "n",
                              "Slope", "Intercept", "R²", "Known stature", "p", "Reference"]
 
-function association_row(result::Association, groups::Vector{ReferenceGroup})::Row
+function association_row(result::Association, groups::Vector{ReferenceGroup}, side_of::Dict{String, String} = Dict{String, String}())::Row
     row = Cell[]
     push!(row, number_cell(round(result.fit - result.lower; digits = 2)))
-    push!(row, measurement_text(result.measurements))
+    push!(row, measurement_text(result.measurements, side_of))
     push!(row, number_cell(round(result.value; digits = 2)))
     push!(row, number_cell(round(result.fit; digits = 2)))
     push!(row, number_cell(round(result.lower; digits = 2)))
@@ -308,27 +325,63 @@ end
 
 # --- Stature association ---
 
+# The specimen's bones, in the order bones are listed: each with its side and
+# the measurements entered for it. `codes` come bone by bone already.
+function specimen_bones(body::Body, codes::Vector{String}, offered::Vector{Measurement})::Vector{SpecimenBone}
+    bone_of = Dict{String, String}(m.code => m.bone for m in offered)
+    bones = unique(String[bone_of[code] for code in codes])
+    sides = bone_sides_field(body, bones)
+    return SpecimenBone[SpecimenBone(bones[k], sides[k], String[code for code in codes if bone_of[code] == bones[k]])
+                        for k in eachindex(bones)]
+end
+
+function enough_reference(sample::AssociationSample)
+    isempty(sample.stature) && cannot_analyse(NO_REFERENCE)
+    length(sample.stature) < MIN_REFERENCE &&
+        cannot_analyse("Not enough reference data: at least " * string(MIN_REFERENCE) * " individuals are needed")
+    return nothing
+end
+
+# What is entered is one model: every measurement of every bone, summed, over
+# the reference individuals who have them all. That is the first row, and
+# `plot` is its plot. With more than one bone, a row for each bone on its own
+# follows (their plots in `bone_plots`), which shows where bones that fit
+# together do not each fit: a long femur and a short tibia can sum to a
+# plausible value. With `element` the measurements must be that one bone's,
+# as they had to be before there could be several bones.
 function associate_handler(state::AppState, req::HTTP.Request)::HTTP.Response
     body = read_json(req)
     snapshot = current_snapshot(state)
     groups = selected_groups(snapshot, list_field(body, "references"))
-    element = text_field(body, "element")
-    element in snapshot.bones || bad_request("Unknown element: " * element)
-    side = side_field(body)
+    offered = snapshot.measurements
+    if haskey(body, "element")
+        element = text_field(body, "element")
+        element in snapshot.bones || bad_request("Unknown element: " * element)
+        offered = filter(m -> m.bone == element, offered)
+    end
     level = interval_field(body)
     inches = inches_field(body)
     entered = values_field(body, "values")
-    codes = entered_codes(entered, filter(m -> m.bone == element, snapshot.measurements), groups)
+    codes = entered_codes(entered, offered, groups)
+    bones = specimen_bones(body, codes, offered)
     known = get(body, "known_stature", nothing)
     known === nothing && cannot_analyse("Enter a known stature")
     stature = plain_number(known)
     isfinite(stature) && stature > 0 || bad_request("The known stature must be a number above 0")
-    sample = association_sample(groups, element, side, codes; inches)
-    isempty(sample.stature) && cannot_analyse(NO_REFERENCE)
-    length(sample.stature) < MIN_REFERENCE &&
-        cannot_analyse("Not enough reference data: at least " * string(MIN_REFERENCE) * " individuals are needed")
-    value = sum(Float64[entered[code] for code in codes])
-    result = analysis(Association, () -> associate(sample, value, stature, level))
-    return json_response(200, JSON.json((results = table_json(ASSOCIATION_COLUMNS, Row[association_row(result, groups)]),
-                                         plot = plot_json(association_plot(sample, level)))))
+    samples = AssociationSample[association_sample(groups, bones; inches)]
+    values = Float64[sum(Float64[entered[code] for code in codes])]
+    enough_reference(samples[1])
+    if length(bones) > 1
+        for bone in bones
+            # everyone with this bone, of whom those with every bone are some: enough of them too
+            push!(samples, association_sample(groups, SpecimenBone[bone]; inches))
+            push!(values, sum(Float64[entered[code] for code in bone.measurements]))
+        end
+    end
+    results = analysis(Vector{Association},
+        () -> Association[associate(samples[i], values[i], stature, level) for i in eachindex(samples)])
+    side_of = Dict{String, String}(code => bone.side for bone in bones for code in bone.measurements)
+    rows = Row[association_row(result, groups, side_of) for result in results]
+    plots = Plot[plot_json(association_plot(sample, level)) for sample in samples]
+    return json_response(200, JSON.json((results = table_json(ASSOCIATION_COLUMNS, rows), plot = plots[1], bone_plots = plots[2:end])))
 end

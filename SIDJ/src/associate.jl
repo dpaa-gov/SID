@@ -1,7 +1,8 @@
-# Stature association: is a known stature consistent with a bone? The sum of
-# the bone's measurements is regressed on stature in the reference sample,
-# and the specimen's sum is compared with the value predicted at the known
-# stature by a t-test on the prediction error.
+# Stature association: is a known stature consistent with a specimen's bones?
+# The sum of their measurements is regressed on stature in the reference
+# sample, and the specimen's sum is compared with the value predicted at the
+# known stature by a t-test on the prediction error. What is entered is one
+# model: several bones are summed together, taken to be one individual's.
 
 struct Association
     measurements::Vector{String}

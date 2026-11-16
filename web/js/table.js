@@ -37,12 +37,28 @@ function fillHead(tr, columns) {
     return cells;
 }
 
-// A one-row result
-export function fillTable(table, results, places) {
+// A result of a few rows, all shown in the server's order. With more than
+// one, a row is chosen by clicking it, the first to begin with; `onSelect` is
+// given its index.
+export function fillTable(table, results, places, onSelect) {
     table.replaceChildren();
     fillHead(table.createTHead().insertRow(), results.columns);
     const body = table.createTBody();
-    for (const row of results.rows) fillRow(body.insertRow(), results.columns, row, places);
+    const rows = results.rows.map((row) => {
+        const tr = body.insertRow();
+        fillRow(tr, results.columns, row, places);
+        return tr;
+    });
+    const choice = rows.length > 1;
+    table.classList.toggle("result-table", choice);
+    table.classList.toggle("selectable", choice);
+    if (!choice) return;
+    rows[0].classList.add("selected");
+    rows.forEach((tr, i) => tr.addEventListener("click", () => {
+        if (tr.classList.contains("selected")) return;
+        for (const other of rows) other.classList.toggle("selected", other === tr);
+        onSelect(i);
+    }));
 }
 
 // An estimation's models. Clicking a row chooses that model; `onSelect` is

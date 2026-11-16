@@ -80,8 +80,17 @@ function estimation_sample(groups::AbstractVector{ReferenceGroup}, sides::Abstra
     return EstimationSample(String.(codes), [ismissing(s) ? s : stature_in(s, inches) for s in stature], values, group)
 end
 
-# One bone on one side: every row with a stature and all of the given
-# measurements, as the sum of those measurements.
+# One bone of a specimen: which bone, its side, and the measurements taken on it.
+struct SpecimenBone
+    bone::String
+    side::String
+    measurements::Vector{String}
+end
+
+# The individuals an association is fitted to: those with a stature and every
+# measurement of every one of the specimen's bones, each bone on its own side,
+# as the sum of all those measurements. For one bone that is every row of that
+# bone on that side, in the order the reference data holds them.
 struct AssociationSample
     measurements::Vector{String}
     stature::Vector{Float64}
@@ -89,27 +98,62 @@ struct AssociationSample
     group::Vector{Int}
 end
 
-function association_sample(groups::AbstractVector{ReferenceGroup}, bone::AbstractString, side::AbstractString,
-                            codes::AbstractVector{<:AbstractString}; inches::Bool = false)
+# One bone's rows in one group, on its side, that have a stature and all of
+# its measurements: whose they are, the stature and the measurements' sum
+const BoneRows = @NamedTuple{accession::Vector{String}, stature::Vector{Float64}, sum::Vector{Float64}}
+
+# Nothing where the group has no such bone, or the bone no such measurement
+function bone_rows(reference::ReferenceGroup, part::SpecimenBone, inches::Bool)::Union{Nothing, BoneRows}
+    table = get(reference.bones, part.bone, nothing)
+    table === nothing && return nothing
+    found = [findfirst(==(code), table.measurements) for code in part.measurements]
+    any(isnothing, found) && return nothing
+    columns = Int[j for j in found if j !== nothing]
+    accession, stature, total = String[], Float64[], Float64[]
+    for i in eachindex(table.accession)
+        table.side[i] == part.side && !ismissing(table.stature[i]) || continue
+        values = Float64[]
+        for j in columns
+            value = table.values[i, j]
+            ismissing(value) || push!(values, value)
+        end
+        length(values) == length(columns) || continue # one of the measurements is missing
+        push!(accession, table.accession[i])
+        push!(stature, stature_in(table.stature[i], inches))
+        push!(total, sum(values))
+    end
+    return (accession = accession, stature = stature, sum = total)
+end
+
+association_sample(groups::AbstractVector{ReferenceGroup}, bone::AbstractString, side::AbstractString,
+                   codes::AbstractVector{<:AbstractString}; inches::Bool = false) =
+    association_sample(groups, [SpecimenBone(String(bone), String(side), String.(codes))]; inches)
+
+function association_sample(groups::AbstractVector{ReferenceGroup}, bones::AbstractVector{SpecimenBone}; inches::Bool = false)
     stature, total, group = Float64[], Float64[], Int[]
+    codes = String[code for part in bones for code in part.measurements]
     for (g, reference) in enumerate(groups)
-        table = get(reference.bones, bone, nothing)
-        table === nothing && continue
-        found = [findfirst(==(code), table.measurements) for code in codes]
-        any(isnothing, found) && continue
-        columns = Int[j for j in found if j !== nothing]
-        for i in eachindex(table.accession)
-            table.side[i] == side && !ismissing(table.stature[i]) || continue
-            values = Float64[]
-            for j in columns
-                value = table.values[i, j]
-                ismissing(value) || push!(values, value)
+        parts = BoneRows[]
+        for part in bones
+            rows = bone_rows(reference, part, inches)
+            rows === nothing && break
+            push!(parts, rows)
+        end
+        # a group without one of the bones has nobody with them all
+        !isempty(parts) && length(parts) == length(bones) || continue
+        # the first bone's individuals, kept where every other bone has them too
+        others = [Dict{String, Float64}(zip(rows.accession, rows.sum)) for rows in parts[2:end]]
+        first = parts[1]
+        for i in eachindex(first.accession)
+            all(other -> haskey(other, first.accession[i]), others) || continue
+            sum_of_all = first.sum[i]
+            for other in others
+                sum_of_all += other[first.accession[i]]
             end
-            length(values) == length(columns) || continue # one of the measurements is missing
-            push!(stature, stature_in(table.stature[i], inches))
-            push!(total, sum(values))
+            push!(stature, first.stature[i])
+            push!(total, sum_of_all)
             push!(group, g)
         end
     end
-    return AssociationSample(String.(codes), stature, total, group)
+    return AssociationSample(codes, stature, total, group)
 end
