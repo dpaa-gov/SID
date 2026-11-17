@@ -264,10 +264,10 @@ function association_row(result::Association, groups::Vector{ReferenceGroup}, si
     return row
 end
 
-# Runs an analysis on a worker thread. `T` is what it gives back.
+# Runs an analysis on a worker thread, in its turn. `T` is what it gives back.
 function analysis(::Type{T}, work::F)::T where {T, F}
     try
-        return off_thread(T, work)
+        return in_line(T, work)
     catch e
         e isa RequestError && rethrow()
         complain("Analysis failed: " * describe(e))
