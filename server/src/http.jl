@@ -101,6 +101,28 @@ function off_thread(::Type{T}, work::F)::T where {T, F}
     return result[]::T
 end
 
+# Analyses wait in line for a worker thread, and an estimate of every model
+# with bootstrap on may keep one for several seconds. With no limit, requests
+# sent faster than they are answered would wait without end, and the server
+# would go on working through them long after whoever sent them had gone. So
+# only this many may be computing or waiting, and the next is told the server
+# is busy.
+const MAX_IN_LINE = 8
+const IN_LINE = Threads.Atomic{Int}(0)
+const BUSY = "The server is busy with other analyses. Try again in a minute."
+
+function in_line(::Type{T}, work::F)::T where {T, F}
+    if Threads.atomic_add!(IN_LINE, 1) >= MAX_IN_LINE
+        Threads.atomic_sub!(IN_LINE, 1)
+        throw(RequestError(503, BUSY))
+    end
+    try
+        return off_thread(T, work)
+    finally
+        Threads.atomic_sub!(IN_LINE, 1)
+    end
+end
+
 json_response(status::Int, body::String)::HTTP.Response =
     HTTP.Response(status, ["Content-Type" => "application/json; charset=utf-8", "Cache-Control" => "no-store"], body)
 error_response(status::Int, message::String)::HTTP.Response = json_response(status, JSON.json((error = message,)))

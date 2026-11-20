@@ -231,6 +231,36 @@ end
     end
 end
 
+# Lists inside lists, tens of thousands deep, fit in a request. Reading them
+# goes a level deeper for each, and JSON before 1.13 ran out of stack doing
+# it. It now refuses anything deeper than 512 levels without trying.
+@testset "a request nested too deep is refused unread" begin
+    deep = Vector{UInt8}("{\"a\": " * "["^30_000 * "]"^30_000 * "}")
+    @test length(deep) < SS.MAX_BODY_BYTES
+    @test_throws ArgumentError JSON.parse(deep) # a stack overflow would be another kind of error
+    @test_throws SS.RequestError(400, "The request body is not valid JSON") SS.read_json(HTTP.Request("POST", "/api/estimate", [], deep))
+    # nothing a request holds is anywhere near as deep
+    @test SS.read_json(HTTP.Request("POST", "/api/estimate", [], Vector{UInt8}("{\"values\": {\"fem_01\": 450}}"))) isa SS.Body
+end
+
+# Analyses wait for a worker thread, and only so many may: sent faster than
+# they are answered, they would otherwise wait without end.
+@testset "waiting analyses are limited" begin
+    gate = Base.Event()
+    held = [Threads.@spawn SS.analysis(Int, () -> (wait(gate); 1)) for _ in 1:SS.MAX_IN_LINE]
+    @test timedwait(() -> SS.IN_LINE[] == SS.MAX_IN_LINE, 10) == :ok
+    @test_throws SS.RequestError(503, SS.BUSY) SS.analysis(Int, () -> 1)
+    @test SS.IN_LINE[] == SS.MAX_IN_LINE # the one refused took no place
+    notify(gate)
+    @test all(task -> fetch(task) == 1, held)
+    @test SS.IN_LINE[] == 0
+    @test SS.analysis(Int, () -> 1) == 1
+    # one that is refused part way, or fails, gives its place back too
+    @test_throws SS.RequestError(422, "no") SS.analysis(Int, () -> throw(SS.RequestError(422, "no")))
+    @test_throws SS.RequestError(422, SS.ANALYSIS_FAILED) SS.analysis(Int, () -> error("failed"))
+    @test SS.IN_LINE[] == 0
+end
+
 # A fit to reference values that do not vary has no slope: its plot is sent with nulls, not refused as an error
 @testset "plots without numbers" begin
     sample = EstimationSample(["fem_01"], fill(170.0, 12), reshape(Union{Missing, Float64}[450.0 for _ in 1:12], 12, 1), fill(1, 12))
