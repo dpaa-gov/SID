@@ -125,4 +125,6 @@ Lynch, J.J. 2026 SID. Stature Identification. Version 1.0.0. Defense POW/MIA Acc
 
 ## License
 
-GNU General Public License v2.0
+GNU Affero General Public License v3.0; the text is in `LICENSE`.
+
+Anyone may run, change and share it. A changed copy that is run for other people to use must offer them its source.
